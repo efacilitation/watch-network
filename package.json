@@ -1,0 +1,36 @@
+{
+  "name": "gulp-watch-network",
+  "description": "coming soon... (it does not work at the moment, but stay tunned!)",
+  "url": "https://github.com/medialwerk/gulp-watch-network",
+  "author": "Ferdinand Full <reg@medialwerk.de>",
+  "version": "0.0.0",
+  "license": "MIT",
+  "main": "index.coffee",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/medialwerk/gulp-watch-network.git"
+  },
+  "bugs": {
+    "url": "https://github.com/medialwerk/gulp-watch-network/issues"
+  },
+  "keywords": [
+    "gulp",
+    "gulpplugin",
+    "network",
+    "watch",
+    "listen"
+  ],
+  "scripts": {
+    "test": "mocha"
+  },
+  "dependencies": {
+    "lodash": "*",
+    "gulp-util": "*",
+    "through2": "*",
+    "coffee-script": "*"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "expect": "*"
+  }
+}
