@@ -3,7 +3,7 @@
   "description": "coming soon... (it does not work at the moment, but stay tunned!)",
   "url": "https://github.com/medialwerk/gulp-watch-network",
   "author": "Ferdinand Full <reg@medialwerk.de>",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "license": "MIT",
   "main": "index.coffee",
   "repository": {
@@ -24,10 +24,12 @@
     "test": "mocha"
   },
   "dependencies": {
+    "coffee-script": "*",
     "lodash": "*",
-    "gulp-util": "*",
-    "through2": "*",
-    "coffee-script": "*"
+    "minimatch": "*",
+    "touch": "*",
+    "chalk": "*",
+    "run-sequence": "*"
   },
   "devDependencies": {
     "mocha": "*",

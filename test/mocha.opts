@@ -1,0 +1,3 @@
+--reporter spec
+--compilers coffee:coffee-script/register
+-t 50000000
