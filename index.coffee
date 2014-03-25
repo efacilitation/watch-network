@@ -88,7 +88,7 @@ module.exports = (options = {}) ->
     socket.on 'data', (buffer) ->
       util = require 'util'
       json = buffer.toString()
-      json = json.match(/{.*}/)[0]
+      json = json.match(/\{".*\}/)[0]
       json = JSON.parse json
       filenames = _.union json.modified, json.added, json.removed
 
@@ -98,7 +98,7 @@ module.exports = (options = {}) ->
 
     socket.on 'end', ->
       # End is not working at the moment...
-      console.log chalk.red 'Connection to Listen at #{options.host}:#{options.port} lost'
+      console.log chalk.red "Connection to Listen at #{options.host}:#{options.port} lost"
 
   # Execute config with onLoad is true
   for config in options.configs
