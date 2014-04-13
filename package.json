@@ -3,9 +3,9 @@
   "description": "Watch File Events received over the Network using net.connect and Listen",
   "url": "https://github.com/efacilitation/gulp-watch-network",
   "author": "Ferdinand Full <reg@medialwerk.de>",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
-  "main": "index.coffee",
+  "main": "index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/efacilitation/gulp-watch-network.git"
@@ -21,10 +21,10 @@
     "listen"
   ],
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "prepublish": "node_modules/.bin/coffee -c index.coffee"
   },
   "dependencies": {
-    "coffee-script": "*",
     "lodash": "*",
     "minimatch": "*",
     "touch": "*",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "mocha": "*",
-    "expect": "*"
+    "expect": "*",
+    "coffee-script": "*"
   }
 }
