@@ -1,9 +1,9 @@
 {
   "name": "gulp-watch-network",
   "description": "Watch File Events received over the Network using net.connect and Listen",
-  "url": "https://github.com/medialwerk/gulp-watch-network",
+  "url": "https://github.com/efacilitation/gulp-watch-network",
   "author": "Ferdinand Full <reg@medialwerk.de>",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "MIT",
   "main": "index.coffee",
   "repository": {
