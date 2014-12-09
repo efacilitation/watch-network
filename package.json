@@ -5,7 +5,7 @@
   "author": "Ferdinand Full <reg@medialwerk.de>",
   "version": "0.0.3",
   "license": "MIT",
-  "main": "index.js",
+  "main": "build/src/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/efacilitation/gulp-watch-network.git"
@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "test": "mocha",
-    "prepublish": "node_modules/.bin/coffee -c index.coffee"
+    "prepublish": "node_modules/.bin/gulp build"
   },
   "dependencies": {
     "lodash": "*",
@@ -33,7 +33,14 @@
   },
   "devDependencies": {
     "mocha": "*",
-    "expect": "*",
-    "coffee-script": "*"
+    "sinon-chai": "*",
+    "sinon": "*",
+    "mockery": "*",
+    "coffee-script": "*",
+    "gulp": "*",
+    "gulp-util": "*",
+    "gulp-coffee": "*",
+    "mocha": "*",
+    "run-sequence": "*"
   }
 }

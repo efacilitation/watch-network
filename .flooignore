@@ -1,0 +1,10 @@
+# NPM packages folder.
+node_modules/
+build/
+
+# OS or Editor folders
+.DS_Store
+*.tmproj
+*.floo
+*.sublime-project
+Gemfile.lock
