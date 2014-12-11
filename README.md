@@ -1,8 +1,10 @@
+ [![Build Status](https://travis-ci.org/efacilitation/gulp-watch-network.svg?branch=master)](https://travis-ci.org/efacilitation/gulp-watch-network)
+
 ## Information
 
 <table>
 <tr>
-<td>Package</td><td>gulp-watch-network [![Build Status](https://travis-ci.org/efacilitation/gulp-watch-network.svg?branch=master)](https://travis-ci.org/efacilitation/gulp-watch-network)</td>
+<td>Package</td><td>gulp-watch-network</td>
 </tr>
 <tr>
 <td>Description</td>
