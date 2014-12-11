@@ -49,7 +49,6 @@ class WatchNetwork extends EventEmitter
 
   initialize: (callback) ->
     gutil.log "Initializing"
-    @_removeLocalRootFile()
 
     socket = @_connectToSocket =>
       gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
@@ -147,8 +146,10 @@ class WatchNetwork extends EventEmitter
       if not found
         gutil.log "Couldnt find the RootFile in the Changed Files, retrying.. #{i}/#{maxRetries}"
         @_waitingOnRootFileChange = true
-        @_touchLocalRootFile()
+        @_removeLocalRootFile()
+        @_touchLocalRootFileAndRetry()
       else
+        @_removeLocalRootFile()
         @emit 'initialized'
         @_initialized = true
         callback()

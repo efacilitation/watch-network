@@ -28,6 +28,10 @@ describe 'WatchNetwork', ->
   WatchNetwork = null
   netMockery = null
   beforeEach ->
+    gutilStub =
+      log: sandbox.stub()
+    mockery.registerMock 'gulp-util', gutilStub
+
     touchStub =
       sync: sandbox.stub()
     mockery.registerMock 'touch', touchStub
@@ -47,23 +51,23 @@ describe 'WatchNetwork', ->
 
 
   describe '#initialize', ->
-    it 'should execute net.connect when starting', ->
+    it 'should net.connect', ->
       WatchNetwork().initialize()
       expect(netMockery.connect).to.have.been.called
 
 
-    it 'should connect to the given host and port', ->
+    it 'should net.connect to the given host and port', ->
       WatchNetwork(
         host: 'test'
         port: '1337'
       ).initialize()
 
-      expect(netMockery.connect).to.have.been.calledWithExactly
+      expect(netMockery.connect).to.have.been.calledWith
         host: 'test'
         port: '1337'
-        sinon.match.func
 
 
+  describe 'searching root path', ->
     it 'should touch a local .root file', ->
       netMockery.connect.yields()
 
@@ -90,34 +94,34 @@ describe 'WatchNetwork', ->
       watchNetwork.initialize()
 
 
-    describe 'file changes', ->
-      watchNetwork = null
-      beforeEach ->
-        fileBuffer = toString: ->
-          JSON.stringify
-            added: ['/path/to/.root']
+  describe 'file changes', ->
+    watchNetwork = null
+    beforeEach ->
+      fileBuffer = toString: ->
+        JSON.stringify
+          added: ['/path/to/.root']
 
-        socketStub.on.withArgs('data').yields fileBuffer
+      socketStub.on.withArgs('data').yields fileBuffer
 
-        watchNetwork = WatchNetwork()
-        watchNetwork.on 'changed', ->
-        watchNetwork.initialize()
+      watchNetwork = WatchNetwork()
+      watchNetwork.on 'changed', ->
+      watchNetwork.initialize()
 
 
 
-      it 'should handle multiple file changes at once after initializing', (done) ->
-        fileBuffer = toString: ->
-          JSON.stringify
-            modified: ['/path/to/modified/file']
-            added: ['/path/to/added/file']
-            removed: ['/path/to/removed/file']
+    it 'should handle multiple file changes at once after initializing', (done) ->
+      fileBuffer = toString: ->
+        JSON.stringify
+          modified: ['/path/to/modified/file']
+          added: ['/path/to/added/file']
+          removed: ['/path/to/removed/file']
 
-        watchNetwork.on 'changed', (files) ->
-          expect(files).to.deep.equal [
-            'modified/file'
-            'added/file'
-            'removed/file'
-          ]
-          done()
+      watchNetwork.on 'changed', (files) ->
+        expect(files).to.deep.equal [
+          'modified/file'
+          'added/file'
+          'removed/file'
+        ]
+        done()
 
-        socketStub.on.withArgs('data').yield fileBuffer
+      socketStub.on.withArgs('data').yield fileBuffer
