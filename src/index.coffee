@@ -39,53 +39,144 @@ class WatchNetwork extends EventEmitter
 
     @_localRootFilePath = path.join process.cwd(), @_options.rootFile
     @_localDir = process.cwd()
-    @_remoteDir = null
+    @_rootPath = null
+    @_waitingOnRootFileChange = true
+    @_waitingOnRootFileChangeRetries = 0
+    @_waitingOnRootFileChangeMaxRetries = 3
+    @_waitingOnRootFileChangeIntervalId = null
+    @_initialized = false
 
 
-  initialize: ->
+  initialize: (callback) ->
+    gutil.log "Initializing"
+    @_removeLocalRootFile()
+
+    socket = @_connectToSocket =>
+      gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
+
+    socket.on 'data', =>
+      gutil.log "Receiving Data from Listen"
+      @_handleIncomingDataFromListen arguments...
+
+    socket.on 'end', =>
+      gutil.log "Connection to Listen lost"
+
+    @_executeOnLoadTasks()
+
+    process.on 'SIGINT', =>
+      socket.destroy()
+      gutil.log "Disconnected from Listen"
+      process.exit 0
+
+    @on 'initialized', ->
+      callback()
+
+
+  _removeLocalRootFile: ->
     if fs.existsSync @_localRootFilePath
       fs.unlinkSync @_localRootFilePath
 
-    socket = net.connect
+
+  _connectToSocket: (callback) ->
+    net.connect
       port: @_options.port
       host: @_options.host
-      , =>
-        gutil.log chalk.green "Successfully connected to Listen at #{@_options.host}:#{@_options.port}"
-        gutil.log "Touching Local RootFile #{@_localRootFilePath}"
-        touch.sync @_localRootFilePath
+    , =>
+      callback.apply arguments...
+      @_touchLocalRootFileAndRetry.apply arguments...
 
-    socket.on 'data', (buffer) =>
-      json  = @_parseJsonFromListenPayload buffer
-      files = @_convertListenJsonToArray json
-      @_findRoot files
+
+  _touchLocalRootFileAndRetry: =>
+    @_waitingOnRootFileChangeIntervalId = setInterval =>
+      if not @_waitingOnRootFileChange
+        return
+
+
+      if @_waitingOnRootFileChangeRetries > @_waitingOnRootFileChangeMaxRetries
+        err = "No change event after touching the RootFile, aborting..
+              (max retries reached: #{@_waitingOnRootFileChangeMaxRetries})"
+        gutil.log err
+        throw new Error err
+
+      @_touchLocalRootFile()
+
+      retries = ""
+      if @_waitingOnRootFileChangeRetries > 0
+        retries = "Retries (#{@_waitingOnRootFileChangeRetries}/#{@_waitingOnRootFileChangeMaxRetries})"
+      gutil.log "Waiting for incoming Listen Data..#{retries}"
+
+      @_waitingOnRootFileChangeRetries++
+    , 500
+
+
+  _touchLocalRootFile: ->
+    gutil.log "Touching Local RootFile #{@_localRootFilePath}"
+    touch.sync @_localRootFilePath
+
+
+  _handleIncomingDataFromListen: (buffer, callback) =>
+    json  = @_parseJsonFromListenData buffer
+    files = @_convertListenJsonToArray json
+
+    if @_waitingOnRootFileChange
+      @_waitingOnRootFileChange = false
+      clearInterval @_waitingOnRootFileChangeIntervalId
+      @_searchRootFileInChangedFilesAndRetry files, =>
+        files = @_stripRootPathFromFiles files
+        @emit 'changed', files
+        @_executeTasks files
+
+    else
       files = @_stripRootPathFromFiles files
+      gutil.log "Files changed: #{files.join(', ')}"
       @emit 'changed', files
-      @_handleFileChanges files
-      socket.end()
-
-    socket.on 'end', =>
-      # End is not working at the moment...
-      gutil.log chalk.red "Connection to Listen at #{@_options.host}:#{@_options.port} lost"
-
-    # Execute config with onLoad is true
-    for config in @_options.configs
-      if config.onLoad
-        @_executeTasks config.async, config.tasks
-
-    # Destroy socket on quit
-    process.on 'SIGINT', =>
-      socket.destroy()
-      gutil.log chalk.green "Successfully disconnected from Listen at #{@_options.host}:#{@_options.port}"
-      process.exit 0
+      @_executeTasks files
 
 
-  _stripRootPathFromFiles: (files) ->
-    remoteDirRegExp = new RegExp "#{@_remoteDir}/?"
-    files = files.map (file) =>
-      file.replace remoteDirRegExp, ''
+  _searchRootFileInChangedFilesAndRetry: (files, callback) ->
+    maxRetries = 3
+    i = 0
+    while (true)
+      i++
+      if i > maxRetries
+        err = "Couldnt find the RootFile in the Changed Files, aborting.. (max retries reached: #{maxRetries})"
+        gutil.log err
+        throw new Error err
+
+      found = @_searchRootFileInChangedFiles files
+      if not found
+        gutil.log "Couldnt find the RootFile in the Changed Files, retrying.. #{i}/#{maxRetries}"
+        @_waitingOnRootFileChange = true
+        @_touchLocalRootFile()
+      else
+        @emit 'initialized'
+        @_initialized = true
+        callback()
+        break
 
 
-  _parseJsonFromListenPayload: (buffer) ->
+  _searchRootFileInChangedFiles: (files) ->
+    if @_rootPath
+      return true
+
+    rootFileRegExp = new RegExp "#{@_options.rootFile}$"
+    gutil.log "Got FileChange Events from Listen, scanning for the RootFile #{@_localRootFilePath}"
+
+    rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
+    for filename in files
+      if not rootFileRegExp.test filename
+        continue
+
+      @_rootPath = path.join filename, rootFileRelativePathToRootDir
+      gutil.log 'Successfully detected RootFile!'
+      gutil.log "Local: #{@_localDir} - Remote: #{@_rootPath}"
+      return true
+
+    if not @_rootPath
+      return false
+
+
+  _parseJsonFromListenData: (buffer) ->
     json = buffer.toString()
     json = json.match(/\{[\s\S]*\}/)[0]
     json = JSON.parse json
@@ -95,46 +186,35 @@ class WatchNetwork extends EventEmitter
     _.union json.modified, json.added, json.removed
 
 
-  _findRoot: (files) ->
-    if @_remoteDir
-      return
+  _stripRootPathFromFiles: (files) ->
+    remoteDirRegExp = new RegExp "#{@_rootPath}/?"
+    files = files.map (file) =>
+      file.replace remoteDirRegExp, ''
 
-    rootFileRegExp = new RegExp "#{@_options.rootFile}$"
-    gutil.log "Scanning for FileChange Event from Listen containing the RootFile #{@_localRootFilePath}"
 
+  _executeTasks: (files) ->
     rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
     for filename in files
-      if not rootFileRegExp.test filename
-        continue
-
-      @_remoteDir = path.join filename, rootFileRelativePathToRootDir
-      gutil.log chalk.green 'Successfully detected remote project directory!'
-      gutil.log chalk.green "Local: #{@_localDir} - Remote: #{@_remoteDir}"
-      break
-
-    if not @_remoteDir
-      gutil.log "Couldnt find the RootFile in the Changed Files, aborting.."
-      process.exit 1
+      @_executeTasksBasedOnPatterns filename.replace "#{@_rootPath}/", ''
 
 
-  _handleFileChanges: (files) ->
-    rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
-    for filename in files
-      @_checkTasksExecution filename.replace "#{@_remoteDir}/", ''
+  _executeOnLoadTasks: ->
+    for config in @_options.configs
+      if config.onLoad
+        @_executeTasksWithRunSequence config.async, config.tasks
 
 
-  _checkTasksExecution: (filename) ->
-    gutil.log chalk.green "File has changed: #{filename}"
+  _executeTasksBasedOnPatterns: (filename) ->
     for config in @_options.configs
       continue if not config.patterns or not config.tasks
       # Ensure array
       patterns = _.flatten [config.patterns]
       for pattern in patterns
         if minimatch filename, pattern
-          @_executeTasks config.async, config.tasks
+          @_executeTasksWithRunSequence config.async, config.tasks
 
 
-  _executeTasks: (async, tasks) ->
+  _executeTasksWithRunSequence: (async, tasks) ->
     gutil.log chalk.magenta "Execute GulpJs tasks \"#{tasks}\" - [async: #{!!async}]"
     finshedTasks = ->
       gutil.log chalk.magenta "Finished GulpJs tasks \"#{tasks}\" - [async: #{!!async}]"

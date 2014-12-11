@@ -37,7 +37,12 @@ describe 'WatchNetwork', ->
       end: sandbox.stub()
     netMockery =
       connect: sandbox.stub().returns socketStub
+    netMockery.connect.yields()
     mockery.registerMock 'net', netMockery
+
+    sandbox.stub global, 'setInterval'
+    global.setInterval.yields()
+
     WatchNetwork = require './'
 
 
@@ -73,10 +78,8 @@ describe 'WatchNetwork', ->
 
     it 'should strip everything from the filepaths from the .root file and up', ->
       fileBuffer = toString: ->
-        """{
-          "added": ["/path/to/.root"]
-        }
-        """
+        JSON.stringify
+          added: ['/path/to/.root']
 
       socketStub.on.withArgs('data').yields fileBuffer
       watchNetwork = WatchNetwork()
@@ -87,23 +90,34 @@ describe 'WatchNetwork', ->
       watchNetwork.initialize()
 
 
-    it 'should handle multiple file changes at once', ->
-      fileBuffer = toString: ->
-        """{
-          "modified": ["/path/to/modified/file"],
-          "added": ["/path/to/.root", "/path/to/added/file"],
-          "removed": ["/path/to/removed/file"]
-        }
-        """
+    describe 'file changes', ->
+      watchNetwork = null
+      beforeEach ->
+        fileBuffer = toString: ->
+          JSON.stringify
+            added: ['/path/to/.root']
 
-      socketStub.on.withArgs('data').yields fileBuffer
-      watchNetwork = WatchNetwork()
-      watchNetwork.on 'changed', (files) ->
-        expect(files).to.deep.equal [
-          'modified/file',
-          '.root',
-          'added/file',
-          'removed/file'
-        ]
+        socketStub.on.withArgs('data').yields fileBuffer
 
-      watchNetwork.initialize()
+        watchNetwork = WatchNetwork()
+        watchNetwork.on 'changed', ->
+        watchNetwork.initialize()
+
+
+
+      it 'should handle multiple file changes at once after initializing', (done) ->
+        fileBuffer = toString: ->
+          JSON.stringify
+            modified: ['/path/to/modified/file']
+            added: ['/path/to/added/file']
+            removed: ['/path/to/removed/file']
+
+        watchNetwork.on 'changed', (files) ->
+          expect(files).to.deep.equal [
+            'modified/file'
+            'added/file'
+            'removed/file'
+          ]
+          done()
+
+        socketStub.on.withArgs('data').yield fileBuffer
