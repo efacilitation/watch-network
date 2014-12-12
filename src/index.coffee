@@ -86,7 +86,7 @@ class WatchNetwork extends EventEmitter
 
 
   _touchLocalRootFileAndWait: =>
-    @_waitingOnRootFileChangeIntervalId = setInterval =>
+    do fn = =>
       if not @_waitingOnRootFileChange
         return
 
@@ -104,7 +104,8 @@ class WatchNetwork extends EventEmitter
       gutil.log "#{retries}Waiting for incoming Listen Data.."
 
       @_waitingOnRootFileChangeRetries++
-    , 500
+
+    @_waitingOnRootFileChangeIntervalId = setInterval fn, 500
 
 
   _touchLocalRootFile: ->
@@ -272,8 +273,6 @@ class WatchNetwork extends EventEmitter
       gutil.log "Finished deferred tasks"
       @_deferredTasks = []
       callback()
-
-
 
 
 module.exports = (options) ->
