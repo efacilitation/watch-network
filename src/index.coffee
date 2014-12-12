@@ -1,8 +1,4 @@
-'use strict'
-
 # TODO: Cache changed files, and enqueue tasks after ~ 300 ms
-#       The queue should only processed if there is no current task chain running
-#       (there is currently a problem if heavy folder renaming takes place!)
 
 PLUGIN_NAME = 'gulp-watch-network'
 
@@ -26,6 +22,7 @@ defaultOptions =
   port: 4000
   rootFile: '.root'
   onLoad: false
+  flushDeferredTasks: true
   configs: []
 
 
@@ -103,8 +100,8 @@ class WatchNetwork extends EventEmitter
 
       retries = ""
       if @_waitingOnRootFileChangeRetries > 0
-        retries = "Retries (#{@_waitingOnRootFileChangeRetries}/#{@_waitingOnRootFileChangeMaxRetries})"
-      gutil.log "Waiting for incoming Listen Data..#{retries}"
+        retries = "Retry #{@_waitingOnRootFileChangeRetries}/#{@_waitingOnRootFileChangeMaxRetries}: "
+      gutil.log "#{retries}Waiting for incoming Listen Data.."
 
       @_waitingOnRootFileChangeRetries++
     , 500
@@ -230,7 +227,8 @@ class WatchNetwork extends EventEmitter
     else
       for filename in files
         tasks = @_getTasksFromConfigMatchingTheFilename filename
-        @_deferredTasks.push tasks
+        if not @_options.flushDeferredTasks
+          @_deferredTasks.push tasks
 
       gutil.log "Deferring Tasks '#{tasks.join(',')}'"
       callback()

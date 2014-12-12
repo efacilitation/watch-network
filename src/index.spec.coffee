@@ -150,6 +150,7 @@ describe 'WatchNetwork', ->
 
       watchNetwork = WatchNetwork
         gulp: gulp
+        flushDeferredTasks: false
         configs: [
           {
             patterns: 'first'
