@@ -1,4 +1,5 @@
 source 'https://rubygems.org'
 
-gem 'daemons'
+gem 'celluloid-io'
+gem 'thor'
 gem 'listen'

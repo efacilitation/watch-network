@@ -8,7 +8,6 @@ path        = require 'path'
 
 _           = require 'lodash'
 minimatch   = require 'minimatch'
-touch       = require 'touch'
 runSequence = require 'run-sequence'
 fs          = require 'fs'
 gutil       = require 'gulp-util'
@@ -34,9 +33,9 @@ class WatchNetwork extends EventEmitter
     if @_options.gulp
       runSequence = runSequence.use @_options.gulp
 
+    @_rootFileRegExp = new RegExp "#{@_options.rootFile}$"
     @_localRootFilePath = path.join process.cwd(), @_options.rootFile
-    @_localDir = process.cwd()
-    @_rootPath = null
+    @_localRootPath = path.dirname @_localRootFilePath
     @_executingTasks = false
     @_deferredTasks = []
     @_waitingOnRootFileChange = true
@@ -63,8 +62,8 @@ class WatchNetwork extends EventEmitter
       socket = @_connectToSocket =>
         gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
 
-      socket.on 'data', =>
-        gutil.log "Receiving Data from Listen"
+      socket.on 'data', (data) =>
+        gutil.log "Receiving Data from Listen", data.toString()
         @_handleIncomingDataFromListen arguments...
 
       socket.on 'end', =>
@@ -110,20 +109,21 @@ class WatchNetwork extends EventEmitter
 
   _touchLocalRootFile: ->
     gutil.log "Touching Local RootFile #{@_localRootFilePath}"
-    touch.sync @_localRootFilePath
+    fs.writeFileSync @_localRootFilePath
 
 
   _handleIncomingDataFromListen: (buffer, callback = ->) =>
-    json  = @_parseJsonFromListenData buffer
-    files = @_convertListenJsonToArray json
+    files = @_parseFilesFromListenData buffer
 
     if @_waitingOnRootFileChange
-      @_waitingOnRootFileChange = false
       clearInterval @_waitingOnRootFileChangeIntervalId
-      @_searchRootFileInChangedFilesAndWait files, callback
+      @_searchRootFileInChangedFilesAndWait files, =>
+        files = @_stripRemoteRootPathFromFiles files
+        @emit 'changed', files
+        callback()
 
     else
-      files = @_stripRootPathFromFiles files
+      files = @_stripRemoteRootPathFromFiles files
       gutil.log "Files changed: #{files.join(', ')}"
       @_executeTasksMatchingChangedFiles files, =>
         @_executingTasks = false
@@ -135,10 +135,12 @@ class WatchNetwork extends EventEmitter
     maxRetries = 3
     retry = 0
     while (true)
-      found = @_searchRootFileInChangedFiles files
-      if found
+      gutil.log "Got FileChange Events from Listen, searching for the RootFile in '#{files.join(',')}'"
+      if @_searchRootFileInChangedFiles files
+        gutil.log "Successfully detected RootFile and set RemoteRootPath to '#{@_remoteRoothPath}'!"
+        @_waitingOnRootFileChange = false
         @_removeLocalRootFile()
-        @emit 'initialized'
+        @emit 'initialized', files
         @_initialized = true
         callback()
         break
@@ -158,24 +160,13 @@ class WatchNetwork extends EventEmitter
 
 
   _searchRootFileInChangedFiles: (files) ->
-    if @_rootPath
-      return true
-
-    rootFileRegExp = new RegExp "#{@_options.rootFile}$"
-    gutil.log "Got FileChange Events from Listen, scanning for the RootFile #{@_localRootFilePath}"
-
-    rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
     for filename in files
-      if not rootFileRegExp.test filename
-        continue
+      if @_rootFileRegExp.test filename
+        @_remoteRoothFilePath = filename
+        @_remoteRoothPath = path.dirname filename
+        return true
 
-      @_rootPath = path.join filename, rootFileRelativePathToRootDir
-      gutil.log 'Successfully detected RootFile!'
-      gutil.log "Local: #{@_localDir} - Remote: #{@_rootPath}"
-      return true
-
-    if not @_rootPath
-      return false
+    return false
 
 
   _removeLocalRootFile: ->
@@ -183,18 +174,20 @@ class WatchNetwork extends EventEmitter
       fs.unlinkSync @_localRootFilePath
 
 
-  _parseJsonFromListenData: (buffer) ->
-    json = buffer.toString()
-    json = json.match(/\{[\s\S]*\}/)[0]
-    json = JSON.parse json
+  _parseFilesFromListenData: (buffer) ->
+    jsonMatches = buffer.toString().match /\[[^\]]+\]/g
+    files = []
+    for jsonMatch in jsonMatches
+      json = JSON.parse jsonMatch
+      filename = "#{json[2]}/#{json[3]}"
+      if (files.indexOf filename) is -1
+        files.push filename
+
+    files
 
 
-  _convertListenJsonToArray: (json) ->
-    _.union json.modified, json.added, json.removed
-
-
-  _stripRootPathFromFiles: (files) ->
-    remoteDirRegExp = new RegExp "#{@_rootPath}/?"
+  _stripRemoteRootPathFromFiles: (files) ->
+    remoteDirRegExp = new RegExp "#{@_remoteRoothPath}/?"
     files = files.map (file) =>
       file.replace remoteDirRegExp, ''
 
@@ -215,9 +208,14 @@ class WatchNetwork extends EventEmitter
 
       rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
       async.eachSeries files, (filename, done) =>
-        filename = filename.replace "#{@_rootPath}/", ''
-        tasks = @_getTasksFromConfigMatchingTheFilename filename
-        @_executeTasks tasks, done
+        filename = filename.replace "#{@_localRootPath}/", ''
+        if not @_rootFileRegExp.test filename
+          tasks = @_getTasksFromConfigMatchingTheFilename filename
+          @_executeTasks tasks, done
+
+        else
+          done()
+
       , =>
         if @_deferredTasks.length > 0
           @_executeDeferredTasks @_deferredTasks, callback

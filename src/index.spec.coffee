@@ -1,30 +1,9 @@
 fs = require 'fs'
 
-chai = require 'chai'
-expect = chai.expect
-
-sinonChai = require 'sinon-chai'
-sinon = require 'sinon'
-chai.use sinonChai
-
-sandbox = sinon.sandbox.create()
-mockery = require 'mockery'
-
-mockery.enable
-  useCleanCache: true
-  warnOnUnregistered: false
-
-
 
 describe 'WatchNetwork', ->
-
-  afterEach ->
-    mockery.resetCache()
-    mockery.deregisterAll()
-    sandbox.restore()
-
   asyncStub = null
-  touchStub = null
+  fsStub = null
   socketStub = null
   WatchNetwork = null
   netMockery = null
@@ -33,9 +12,11 @@ describe 'WatchNetwork', ->
       log: sandbox.stub()
     mockery.registerMock 'gulp-util', gutilStub
 
-    touchStub =
-      sync: sandbox.stub()
-    mockery.registerMock 'touch', touchStub
+    fsStub =
+      existsSync: sandbox.stub().returns true
+      unlinkSync: sandbox.stub()
+      writeFileSync: sandbox.stub()
+    mockery.registerMock 'fs', fsStub
 
     socketStub =
       on: sandbox.stub()
@@ -93,29 +74,31 @@ describe 'WatchNetwork', ->
 
       watchNetwork = WatchNetwork().initialize()
 
-      expect(touchStub.sync).to.have.been.calledWith "#{process.cwd()}/.root"
+      expect(fsStub.writeFileSync).to.have.been.calledWith "#{process.cwd()}/.root"
 
 
-    it 'should strip everything from the filepaths from the .root file and up', ->
+    it 'should strip everything from the filepaths from the .root file and up', (done) ->
       fileBuffer = toString: ->
-        JSON.stringify
-          added: ['/path/to/.root']
+        JSON.stringify [null, null, "/path/to/tmp", '.root']
 
       socketStub.on.withArgs('data').yields fileBuffer
-      watchNetwork = WatchNetwork()
+
+      watchNetwork = WatchNetwork
+        rootFile: './tmp/.root'
       watchNetwork.on 'changed', (files) ->
-        expect(files[0]).to.not.contain '/path/to'
+        expect(files[0]).to.not.contain 'tmp'
         expect(files[0]).to.equal '.root'
+        done()
 
       watchNetwork.initialize()
+
 
 
   describe 'file changes', ->
     watchNetwork = null
     beforeEach ->
       fileBuffer = toString: ->
-        JSON.stringify
-          added: ['/path/to/.root']
+        JSON.stringify [null, null, '/path/to', '.root']
 
       socketStub.on.withArgs('data').yields fileBuffer
 
@@ -133,10 +116,10 @@ describe 'WatchNetwork', ->
         done()
 
       fileBuffer = toString: ->
-        JSON.stringify
-          modified: ['/path/to/modified/file']
-          added: ['/path/to/added/file']
-          removed: ['/path/to/removed/file']
+        str  = JSON.stringify [null, null, '/path/to/modified', 'file']
+        str += JSON.stringify [null, null, '/path/to/added', 'file']
+        str += JSON.stringify [null, null, '/path/to/removed', 'file']
+        str
       socketStub.on.withArgs('data').yield fileBuffer
 
 
@@ -148,8 +131,7 @@ describe 'WatchNetwork', ->
     watchNetwork = null
     beforeEach (done) ->
       fileBuffer = toString: ->
-        JSON.stringify
-          added: ['/path/to/.root']
+        JSON.stringify [null, null, '/path/to', '.root']
 
       socketStub.on.withArgs('data').yields fileBuffer
 
@@ -181,14 +163,12 @@ describe 'WatchNetwork', ->
 
     it 'should defer executing tasks if other tasks are already running', ->
       fileBuffer = toString: ->
-        JSON.stringify
-          modified: ['first']
+        JSON.stringify [null, null, '/path/to', 'first']
       socketStub.on.withArgs('data').yield fileBuffer
       expect(firstTaskCalled).to.be.true
 
       fileBuffer = toString: ->
-        JSON.stringify
-          modified: ['second']
+        JSON.stringify [null, null, '/path/to', 'second']
       socketStub.on.withArgs('data').yield fileBuffer
       expect(secondTaskCalled).to.be.false
 

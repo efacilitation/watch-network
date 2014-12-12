@@ -4,7 +4,7 @@ spawn = require('child_process').spawn
 module.exports = (gulp) ->
   mochaProcess = null
   gulp.task 'spec:server', (next) ->
-    glob = ['src/*.spec.coffee']
+    glob = ['src/setup.spec.coffee', 'src/*.spec.coffee']
     options = [
       '--compilers'
       'coffee:coffee-script/register'

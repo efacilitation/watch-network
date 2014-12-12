@@ -28,10 +28,10 @@
     "async": "*",
     "lodash": "*",
     "minimatch": "*",
-    "touch": "*",
     "run-sequence": "*"
   },
   "devDependencies": {
+    "del": "*",
     "mocha": "*",
     "sinon-chai": "*",
     "sinon": "*",
