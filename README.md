@@ -29,11 +29,11 @@ watch = WatchNetWork({
   host: '127.0.0.1',
   configs: [
     {
-      tasks: 'scripts'
+      tasks: 'something:important'
       onLoad: true
     }, {
       patterns: 'lib/*.coffee'
-      tasks: 'specs'
+      tasks: 'something:important'
     }
   ]
 });
