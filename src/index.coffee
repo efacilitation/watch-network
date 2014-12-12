@@ -1,7 +1,3 @@
-# TODO: Cache changed files, and enqueue tasks after ~ 300 ms
-
-PLUGIN_NAME = 'gulp-watch-network'
-
 async       = require 'async'
 net         = require 'net'
 path        = require 'path'
@@ -63,7 +59,7 @@ class WatchNetwork extends EventEmitter
         gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
 
       socket.on 'data', (data) =>
-        gutil.log "Receiving Data from Listen", data.toString()
+        gutil.log "Receiving Data from Listen"
         @_handleIncomingDataFromListen arguments...
 
       socket.on 'end', =>
@@ -211,7 +207,11 @@ class WatchNetwork extends EventEmitter
         filename = filename.replace "#{@_localRootPath}/", ''
         if not @_rootFileRegExp.test filename
           tasks = @_getTasksFromConfigMatchingTheFilename filename
-          @_executeTasks tasks, done
+          if tasks.length > 0
+            @_executeTasksWithRunSequence tasks, done
+
+          else
+            done()
 
         else
           done()
@@ -234,12 +234,7 @@ class WatchNetwork extends EventEmitter
 
 
   _executeTasks: (tasks, callback) ->
-    if tasks.length > 0
-      gutil.log "Executing Tasks '#{tasks.join(',')}'"
-      @_executeTasksWithRunSequence tasks, callback
 
-    else
-      callback()
 
 
   _getTasksFromConfigMatchingTheFilename: (filename) ->
@@ -256,9 +251,10 @@ class WatchNetwork extends EventEmitter
 
 
   _executeTasksWithRunSequence: (tasks, callback) ->
-    if typeof tasks isnt 'object'
+    if typeof tasks is 'string'
       tasks = [tasks]
 
+    tasks = _.flatten tasks
     gutil.log "Executing tasks '#{tasks}'"
     runSequence tasks..., ->
       gutil.log "Finished tasks '#{tasks}'"
