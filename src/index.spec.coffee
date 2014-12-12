@@ -23,6 +23,7 @@ describe 'WatchNetwork', ->
     mockery.deregisterAll()
     sandbox.restore()
 
+  asyncStub = null
   touchStub = null
   socketStub = null
   WatchNetwork = null
@@ -67,7 +68,7 @@ describe 'WatchNetwork', ->
         port: '1337'
 
 
-  describe 'searching root path', ->
+  describe 'root path', ->
     it 'should touch a local .root file', ->
       netMockery.connect.yields()
 
@@ -104,9 +105,7 @@ describe 'WatchNetwork', ->
       socketStub.on.withArgs('data').yields fileBuffer
 
       watchNetwork = WatchNetwork()
-      watchNetwork.on 'changed', ->
       watchNetwork.initialize()
-
 
 
     it 'should handle multiple file changes at once after initializing', (done) ->
@@ -125,3 +124,59 @@ describe 'WatchNetwork', ->
         done()
 
       socketStub.on.withArgs('data').yield fileBuffer
+
+
+  describe 'executing tasks', (done) ->
+    firstTaskCalled = false
+    firstTaskCallback = null
+    secondTaskCalled = false
+    secondTaskCallback = null
+    watchNetwork = null
+    beforeEach (done) ->
+      fileBuffer = toString: ->
+        JSON.stringify
+          added: ['/path/to/.root']
+
+      socketStub.on.withArgs('data').yields fileBuffer
+
+      gulp = require 'gulp'
+      gulp.task 'first', (next) ->
+        firstTaskCalled = true
+        firstTaskCallback = next
+
+      gulp.task 'second', (next) ->
+        secondTaskCalled = true
+        secondTaskCallback = next
+
+      watchNetwork = WatchNetwork
+        gulp: gulp
+        configs: [
+          {
+            patterns: 'first'
+            tasks: 'first'
+          }
+          {
+            patterns: 'second'
+            tasks: 'second'
+          }
+        ]
+      watchNetwork.initialize ->
+        done()
+
+
+    it 'should defer executing tasks if other tasks are already running', ->
+      fileBuffer = toString: ->
+        JSON.stringify
+          modified: ['first']
+      socketStub.on.withArgs('data').yield fileBuffer
+      expect(firstTaskCalled).to.be.true
+
+      fileBuffer = toString: ->
+        JSON.stringify
+          modified: ['second']
+      socketStub.on.withArgs('data').yield fileBuffer
+      expect(secondTaskCalled).to.be.false
+
+      firstTaskCallback()
+
+      expect(secondTaskCalled).to.be.true

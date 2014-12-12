@@ -6,6 +6,7 @@
 
 PLUGIN_NAME = 'gulp-watch-network'
 
+async       = require 'async'
 net         = require 'net'
 path        = require 'path'
 
@@ -40,40 +41,43 @@ class WatchNetwork extends EventEmitter
     @_localRootFilePath = path.join process.cwd(), @_options.rootFile
     @_localDir = process.cwd()
     @_rootPath = null
+    @_executingTasks = false
+    @_deferredTasks = []
     @_waitingOnRootFileChange = true
     @_waitingOnRootFileChangeRetries = 0
     @_waitingOnRootFileChangeMaxRetries = 3
     @_waitingOnRootFileChangeIntervalId = null
     @_initialized = false
 
+    @lastChangeTime = null
+    @on 'changed', =>
+      @lastChangeTime = new Date()
 
-  initialize: (callback) ->
+
+
+  initialize: (callback = ->) ->
     gutil.log "Initializing"
+    @on 'initialized', ->
+      callback()
 
-    socket = @_connectToSocket =>
-      gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
+    gutil.log "Executing Tasks with onLoad flag"
+    @_executeTasksOnLoad =>
 
-    socket.on 'data', =>
-      gutil.log "Receiving Data from Listen"
-      @_handleIncomingDataFromListen arguments...
+      gutil.log "Connecting to Listen"
+      socket = @_connectToSocket =>
+        gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
 
-    socket.on 'end', =>
-      gutil.log "Connection to Listen lost"
+      socket.on 'data', =>
+        gutil.log "Receiving Data from Listen"
+        @_handleIncomingDataFromListen arguments...
 
-    @_executeOnLoadTasks()
+      socket.on 'end', =>
+        gutil.log "Connection to Listen lost"
 
     process.on 'SIGINT', =>
       socket.destroy()
       gutil.log "Disconnected from Listen"
       process.exit 0
-
-    @on 'initialized', ->
-      callback()
-
-
-  _removeLocalRootFile: ->
-    if fs.existsSync @_localRootFilePath
-      fs.unlinkSync @_localRootFilePath
 
 
   _connectToSocket: (callback) ->
@@ -82,14 +86,13 @@ class WatchNetwork extends EventEmitter
       host: @_options.host
     , =>
       callback.apply arguments...
-      @_touchLocalRootFileAndRetry.apply arguments...
+      @_touchLocalRootFileAndWait.apply arguments...
 
 
-  _touchLocalRootFileAndRetry: =>
+  _touchLocalRootFileAndWait: =>
     @_waitingOnRootFileChangeIntervalId = setInterval =>
       if not @_waitingOnRootFileChange
         return
-
 
       if @_waitingOnRootFileChangeRetries > @_waitingOnRootFileChangeMaxRetries
         err = "No change event after touching the RootFile, aborting..
@@ -113,47 +116,49 @@ class WatchNetwork extends EventEmitter
     touch.sync @_localRootFilePath
 
 
-  _handleIncomingDataFromListen: (buffer, callback) =>
+  _handleIncomingDataFromListen: (buffer, callback = ->) =>
     json  = @_parseJsonFromListenData buffer
     files = @_convertListenJsonToArray json
 
     if @_waitingOnRootFileChange
       @_waitingOnRootFileChange = false
       clearInterval @_waitingOnRootFileChangeIntervalId
-      @_searchRootFileInChangedFilesAndRetry files, =>
+      @_searchRootFileInChangedFilesAndWait files, =>
         files = @_stripRootPathFromFiles files
         @emit 'changed', files
-        @_executeTasks files
+        callback()
 
     else
       files = @_stripRootPathFromFiles files
       gutil.log "Files changed: #{files.join(', ')}"
       @emit 'changed', files
-      @_executeTasks files
+      @_executeTasksMatchingChangedFiles files, callback
 
 
-  _searchRootFileInChangedFilesAndRetry: (files, callback) ->
+  _searchRootFileInChangedFilesAndWait: (files, callback) ->
     maxRetries = 3
-    i = 0
+    retry = 0
     while (true)
-      i++
-      if i > maxRetries
-        err = "Couldnt find the RootFile in the Changed Files, aborting.. (max retries reached: #{maxRetries})"
-        gutil.log err
-        throw new Error err
-
       found = @_searchRootFileInChangedFiles files
-      if not found
-        gutil.log "Couldnt find the RootFile in the Changed Files, retrying.. #{i}/#{maxRetries}"
-        @_waitingOnRootFileChange = true
-        @_removeLocalRootFile()
-        @_touchLocalRootFileAndRetry()
-      else
+      if found
         @_removeLocalRootFile()
         @emit 'initialized'
         @_initialized = true
         callback()
         break
+
+      else
+        retry++
+        if retry <= maxRetries
+          gutil.log "Couldnt find the RootFile in the Changed Files, retrying.. #{retry}/#{maxRetries}"
+        else
+          err = "Couldnt find the RootFile in the Changed Files, aborting.. (max retries reached: #{maxRetries})"
+          gutil.log err
+          throw new Error err
+
+        @_waitingOnRootFileChange = true
+        @_removeLocalRootFile()
+        @_touchLocalRootFileAndWait()
 
 
   _searchRootFileInChangedFiles: (files) ->
@@ -177,6 +182,11 @@ class WatchNetwork extends EventEmitter
       return false
 
 
+  _removeLocalRootFile: ->
+    if fs.existsSync @_localRootFilePath
+      fs.unlinkSync @_localRootFilePath
+
+
   _parseJsonFromListenData: (buffer) ->
     json = buffer.toString()
     json = json.match(/\{[\s\S]*\}/)[0]
@@ -193,42 +203,77 @@ class WatchNetwork extends EventEmitter
       file.replace remoteDirRegExp, ''
 
 
-  _executeTasks: (files) ->
-    rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
-    for filename in files
-      @_executeTasksBasedOnPatterns filename.replace "#{@_rootPath}/", ''
-
-
-  _executeOnLoadTasks: ->
-    for config in @_options.configs
+  _executeTasksOnLoad: (callback = ->) ->
+    async.eachSeries @_options.configs, (config, done) ->
       if config.onLoad
-        @_executeTasksWithRunSequence config.async, config.tasks
+        @_executeTasksWithRunSequence config.done, done
+      else
+        done()
+    , callback
 
 
-  _executeTasksBasedOnPatterns: (filename) ->
+  _executeTasksMatchingChangedFiles: (files, callback = ->) ->
+    if not @_executingTasks
+      @_executingTasks = true
+
+      rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
+      async.eachSeries files, (filename, done) =>
+        filename = filename.replace "#{@_rootPath}/", ''
+        tasks = @_getTasksFromConfigMatchingTheFilename filename
+        @_executeTasks tasks, done
+      , =>
+        if @_deferredTasks.length > 0
+          @_executeDeferredTasks @_deferredTasks, callback
+
+        else
+          callback
+
+    else
+      for filename in files
+        tasks = @_getTasksFromConfigMatchingTheFilename filename
+        @_deferredTasks.push tasks
+
+      gutil.log "Deferring Tasks '#{tasks.join(',')}'"
+      callback()
+
+
+  _executeTasks: (tasks, callback) ->
+    if tasks.length > 0
+      gutil.log "Executing Tasks '#{tasks.join(',')}'"
+      @_executeTasksWithRunSequence tasks, callback
+
+    else
+      callback()
+
+
+  _getTasksFromConfigMatchingTheFilename: (filename) ->
+    tasks = []
     for config in @_options.configs
       continue if not config.patterns or not config.tasks
-      # Ensure array
+
       patterns = _.flatten [config.patterns]
       for pattern in patterns
         if minimatch filename, pattern
-          @_executeTasksWithRunSequence config.async, config.tasks
+          tasks.push config.tasks
+
+    tasks
 
 
-  _executeTasksWithRunSequence: (async, tasks) ->
-    gutil.log chalk.magenta "Execute GulpJs tasks \"#{tasks}\" - [async: #{!!async}]"
-    finshedTasks = ->
-      gutil.log chalk.magenta "Finished GulpJs tasks \"#{tasks}\" - [async: #{!!async}]"
+  _executeTasksWithRunSequence: (tasks, callback) ->
+    gutil.log "Executing tasks '#{tasks}'"
+    runSequence tasks..., ->
+      gutil.log "Finished tasks '#{tasks}'"
+      callback()
 
-    # Ensure array
-    tasks = _.flatten [tasks]
 
-    if async
-      runSequence tasks, finshedTasks
-    else
-      clonedTasks = _.clone tasks
-      clonedTasks.push finshedTasks
-      runSequence.apply runSequence, clonedTasks
+  _executeDeferredTasks: (callback) ->
+    gutil.log "Executing deferred tasks"
+    @_executeTasksWithRunSequence @_deferredTasks, ->
+      gutil.log "Finished deferred tasks"
+      @_deferredTasks = []
+      callback()
+
+
 
 
 module.exports = (options) ->
