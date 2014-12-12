@@ -1,10 +1,8 @@
- [![Build Status](https://travis-ci.org/efacilitation/gulp-watch-network.svg?branch=master)](https://travis-ci.org/efacilitation/gulp-watch-network)
-
 ## Information
 
 <table>
 <tr>
-<td>Package</td><td>gulp-watch-network</td>
+<td>Package</td><td>gulp-watch-network [![Build Status](https://travis-ci.org/efacilitation/gulp-watch-network.svg?branch=master)](https://travis-ci.org/efacilitation/gulp-watch-network)</td>
 </tr>
 <tr>
 <td>Description</td>
@@ -16,31 +14,37 @@ Based on the Listen Feature "[Forwarding file events over TCP](https://github.co
 
 ## Usage
 
-First, install `gulp-watch-network` as a development dependency:
-
-```shell
-npm install --save-dev gulp-watch-network
-```
-
-Then, add it to your `gulpfile.js`:
-
 ```javascript
-watchNetwork = require("gulp-watch-network");
-
-gulp.task('watch', function() {
-
-  watchNetwork: {
-    host: '127.0.0.1'
-    configs: [
-      {
-        tasks: 'scripts'
-        onLoad: true
-      }, {
-        patterns: 'lib/*.coffee'
-        tasks: 'specs'
-      }
-  }
+gulp = require('gulp');
+gulp.task('something:important', function() {
+  // ..
 });
+
+WatchNetwork = require("gulp-watch-network");
+
+watch = WatchNetWork({
+  gulp: gulp,
+  host: '127.0.0.1',
+  configs: [
+    {
+      tasks: 'scripts'
+      onLoad: true
+    }, {
+      patterns: 'lib/*.coffee'
+      tasks: 'specs'
+    }
+  ]
+});
+
+watch.on('changed', function(files) {
+  // .. files changed..
+});
+
+watch.on('initialized', function(files) {
+  // .. watcher finished initializing..
+});
+
+watch.initialize();
 
 ```
 
