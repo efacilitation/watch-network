@@ -1,6 +1,6 @@
 {
   "name": "gulp-watch-network",
-  "description": "Watch File Events received over the Network using net.connect and Listen",
+  "description": "Watch File Events received over the Network using Listen and execute Gulp Tasks based on it",
   "url": "https://github.com/efacilitation/gulp-watch-network",
   "author": "Ferdinand Full <reg@medialwerk.de>",
   "version": "0.1.1",
