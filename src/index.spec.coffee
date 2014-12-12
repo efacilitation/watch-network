@@ -109,12 +109,6 @@ describe 'WatchNetwork', ->
 
 
     it 'should handle multiple file changes at once after initializing', (done) ->
-      fileBuffer = toString: ->
-        JSON.stringify
-          modified: ['/path/to/modified/file']
-          added: ['/path/to/added/file']
-          removed: ['/path/to/removed/file']
-
       watchNetwork.on 'changed', (files) ->
         expect(files).to.deep.equal [
           'modified/file'
@@ -123,10 +117,15 @@ describe 'WatchNetwork', ->
         ]
         done()
 
+      fileBuffer = toString: ->
+        JSON.stringify
+          modified: ['/path/to/modified/file']
+          added: ['/path/to/added/file']
+          removed: ['/path/to/removed/file']
       socketStub.on.withArgs('data').yield fileBuffer
 
 
-  describe 'executing tasks', (done) ->
+  describe 'executing deferred tasks', (done) ->
     firstTaskCalled = false
     firstTaskCallback = null
     secondTaskCalled = false

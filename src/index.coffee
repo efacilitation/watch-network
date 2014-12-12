@@ -119,16 +119,15 @@ class WatchNetwork extends EventEmitter
     if @_waitingOnRootFileChange
       @_waitingOnRootFileChange = false
       clearInterval @_waitingOnRootFileChangeIntervalId
-      @_searchRootFileInChangedFilesAndWait files, =>
-        files = @_stripRootPathFromFiles files
-        @emit 'changed', files
-        callback()
+      @_searchRootFileInChangedFilesAndWait files, callback
 
     else
       files = @_stripRootPathFromFiles files
       gutil.log "Files changed: #{files.join(', ')}"
-      @emit 'changed', files
-      @_executeTasksMatchingChangedFiles files, callback
+      @_executeTasksMatchingChangedFiles files, =>
+        @_executingTasks = false
+        @emit 'changed', files
+        callback()
 
 
   _searchRootFileInChangedFilesAndWait: (files, callback) ->
@@ -222,7 +221,7 @@ class WatchNetwork extends EventEmitter
           @_executeDeferredTasks @_deferredTasks, callback
 
         else
-          callback
+          callback()
 
     else
       for filename in files
