@@ -3,7 +3,7 @@
   "description": "Watch File Events received over the Network using net.connect and Listen",
   "url": "https://github.com/efacilitation/gulp-watch-network",
   "author": "Ferdinand Full <reg@medialwerk.de>",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "main": "build/src/index.js",
   "repository": {
@@ -25,10 +25,10 @@
     "prepublish": "node_modules/.bin/gulp build"
   },
   "dependencies": {
+    "async": "*",
     "lodash": "*",
     "minimatch": "*",
     "touch": "*",
-    "chalk": "*",
     "run-sequence": "*"
   },
   "devDependencies": {
