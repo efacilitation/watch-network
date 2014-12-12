@@ -70,10 +70,10 @@ class WatchNetwork extends EventEmitter
       socket.on 'end', =>
         gutil.log "Connection to Listen lost"
 
-    process.on 'SIGINT', =>
-      socket.destroy()
-      gutil.log "Disconnected from Listen"
-      process.exit 0
+      process.on 'SIGINT', =>
+        socket.destroy()
+        gutil.log "Disconnected from Listen"
+        process.exit 0
 
 
   _connectToSocket: (callback) ->
