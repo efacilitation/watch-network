@@ -199,11 +199,12 @@ class WatchNetwork extends EventEmitter
 
 
   _executeTasksOnLoad: (callback = ->) ->
-    async.eachSeries @_options.configs, (config, done) ->
+    async.eachSeries @_options.configs, (config, done) =>
       if config.onLoad
-        @_executeTasksWithRunSequence config.done, done
+        @_executeTasksWithRunSequence config.tasks, done
       else
         done()
+
     , callback
 
 
@@ -256,6 +257,9 @@ class WatchNetwork extends EventEmitter
 
 
   _executeTasksWithRunSequence: (tasks, callback) ->
+    if typeof tasks isnt 'object'
+      tasks = [tasks]
+
     gutil.log "Executing tasks '#{tasks}'"
     runSequence tasks..., ->
       gutil.log "Finished tasks '#{tasks}'"

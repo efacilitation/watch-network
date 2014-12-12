@@ -68,15 +68,30 @@ describe 'WatchNetwork', ->
         port: '1337'
 
 
+    it 'should execute onLoad tasks', ->
+      fancyCalled = false
+      gulp = require 'gulp'
+      gulp.task 'fancy', ->
+        fancyCalled = true
+
+      watchNetwork = WatchNetwork
+        gulp: gulp
+        configs: [
+          {
+            tasks: 'fancy'
+            onLoad: true
+          }
+        ]
+
+      watchNetwork.initialize ->
+        expect(fancyCalled).to.be.true
+
+
   describe 'root path', ->
     it 'should touch a local .root file', ->
       netMockery.connect.yields()
 
-      watchNetwork = WatchNetwork
-        host: 'test'
-        port: '1337'
-
-      watchNetwork.initialize()
+      watchNetwork = WatchNetwork().initialize()
 
       expect(touchStub.sync).to.have.been.calledWith "#{process.cwd()}/.root"
 
