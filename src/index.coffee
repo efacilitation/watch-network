@@ -233,10 +233,6 @@ class WatchNetwork extends EventEmitter
       callback()
 
 
-  _executeTasks: (tasks, callback) ->
-
-
-
   _getTasksFromConfigMatchingTheFilename: (filename) ->
     tasks = []
     for config in @_options.configs
