@@ -21,6 +21,7 @@ describe 'WatchNetwork Feature', ->
     listenProcess.on 'close', ->
       setTimeout ->
         watch.end()
+        del.sync './tmp', force: true
         done()
       , 250
     listenProcess.kill 'SIGTERM'
