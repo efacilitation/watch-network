@@ -178,7 +178,7 @@ class WatchNetwork extends EventEmitter
 
 
   _parseFilesFromListenData: (data) ->
-    jsonMatches = data.match /\[[^\]]+\]/g
+    jsonMatches = data.match /\[[^\[\]]+\]/g
     files = []
     for jsonMatch in jsonMatches
       json = JSON.parse jsonMatch
