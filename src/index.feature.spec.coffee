@@ -20,7 +20,6 @@ describe 'WatchNetwork Feature', ->
   afterEach (done) ->
     listenProcess.on 'close', ->
       setTimeout ->
-        watch.end()
         del.sync './tmp', force: true
         done()
       , 250
@@ -53,6 +52,7 @@ describe 'WatchNetwork Feature', ->
         niftyMatched = true
         expect(files[niftyIndex]).to.equal 'file.ext'
         expect(niftyTaskCalled).to.be.true
+        watch.end()
         done()
 
     watch.initialize ->
@@ -75,6 +75,7 @@ describe 'WatchNetwork Feature', ->
       secondTaskCalled = true
       setTimeout ->
         expect(firstTaskCalled).to.be.true
+        watch.end()
         done()
       , 250
 
