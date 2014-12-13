@@ -109,7 +109,9 @@ class WatchNetwork extends EventEmitter
 
 
   _handleIncomingDataFromListen: (buffer, callback = ->) =>
-    files = @_parseFilesFromListenData buffer
+    data = buffer.toString()
+    gutil.log "Incoming Listen Data: #{data}"
+    files = @_parseFilesFromListenData data
 
     if @_waitingOnRootFileChange
       clearInterval @_waitingOnRootFileChangeIntervalId
@@ -170,8 +172,8 @@ class WatchNetwork extends EventEmitter
       fs.unlinkSync @_localRootFilePath
 
 
-  _parseFilesFromListenData: (buffer) ->
-    jsonMatches = buffer.toString().match /\[[^\]]+\]/g
+  _parseFilesFromListenData: (data) ->
+    jsonMatches = data.match /\[[^\]]+\]/g
     files = []
     for jsonMatch in jsonMatches
       json = JSON.parse jsonMatch
@@ -205,16 +207,16 @@ class WatchNetwork extends EventEmitter
       rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
       async.eachSeries files, (filename, done) =>
         filename = filename.replace "#{@_localRootPath}/", ''
-        if not @_rootFileRegExp.test filename
+        if @_rootFileRegExp.test filename
+          done()
+
+        else
           tasks = @_getTasksFromConfigMatchingTheFilename filename
           if tasks.length > 0
             @_executeTasksWithRunSequence tasks, done
 
           else
             done()
-
-        else
-          done()
 
       , =>
         if @_deferredTasks.length > 0
@@ -241,6 +243,7 @@ class WatchNetwork extends EventEmitter
       patterns = _.flatten [config.patterns]
       for pattern in patterns
         if minimatch filename, pattern
+          gutil.log "Pattern '#{pattern}' matched. Queueing tasks '#{config.tasks}'"
           tasks.push config.tasks
 
     tasks
