@@ -14,6 +14,8 @@
 
 Based on the Listen Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)", this plugin will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. This can be useful for virtualized development environments when file events are unavailable, as is the case with [Vagrant](https://github.com/mitchellh/vagrant) / [VirtualBox](https://www.virtualbox.org).
 
+> Listen >2.8 required
+
 ## Usage
 
 ```javascript
@@ -33,7 +35,7 @@ watch = WatchNetWork({
       onLoad: true
     }, {
       patterns: 'lib/*.coffee'
-      tasks: 'something:important'
+      tasks: ['something:important', 'another:thing']
     }
   ]
 });

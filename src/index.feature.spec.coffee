@@ -5,7 +5,7 @@ del = require 'del'
 
 describe 'WatchNetwork Feature', ->
   listenProcess = null
-  beforeEach (done) ->
+  before (done) ->
     if fs.existsSync './tmp'
       del.sync './tmp', force: true
     fs.mkdirSync './tmp'
@@ -13,14 +13,14 @@ describe 'WatchNetwork Feature', ->
     listenProcess = spawn "listen", ["-d", "./tmp"]
     setTimeout ->
       done()
-    , 500
+    , 250
 
 
-  afterEach (done) ->
+  after (done) ->
     listenProcess.on 'close', ->
       setTimeout ->
         done()
-      , 500
+      , 250
     listenProcess.kill 'SIGTERM'
 
 
@@ -63,12 +63,18 @@ describe 'WatchNetwork Feature', ->
     gulp = require 'gulp'
     gulp.task 'first', (next) ->
       firstTaskCalled = true
-      expect(secondTaskCalled).to.be.false
-      next()
+      setTimeout ->
+        expect(secondTaskCalled).to.be.false
+        next()
+      , 250
+
     gulp.task 'second', (next) ->
       secondTaskCalled = true
-      expect(firstTaskCalled).to.be.true
-      done()
+      setTimeout ->
+        expect(firstTaskCalled).to.be.true
+        done()
+      , 250
+
 
     WatchNetwork = require './'
     watch = WatchNetwork
