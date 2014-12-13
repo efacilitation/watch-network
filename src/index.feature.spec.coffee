@@ -4,8 +4,9 @@ del = require 'del'
 {spawn} = require 'child_process'
 
 describe 'WatchNetwork Feature', ->
+  watch = null
   listenProcess = null
-  before (done) ->
+  beforeEach (done) ->
     if fs.existsSync './tmp'
       del.sync './tmp', force: true
     fs.mkdirSync './tmp'
@@ -16,9 +17,10 @@ describe 'WatchNetwork Feature', ->
     , 250
 
 
-  after (done) ->
+  afterEach (done) ->
     listenProcess.on 'close', ->
       setTimeout ->
+        watch.end()
         done()
       , 250
     listenProcess.kill 'SIGTERM'

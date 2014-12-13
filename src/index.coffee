@@ -54,20 +54,25 @@ class WatchNetwork extends EventEmitter
     @_executeTasksOnLoad =>
 
       gutil.log "Connecting to Listen"
-      socket = @_connectToSocket =>
+      @_socket = @_connectToSocket =>
         gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
 
-      socket.on 'data', (data) =>
+      @_socket.on 'data', (data) =>
         gutil.log "Receiving Data from Listen"
         @_handleIncomingDataFromListen arguments...
 
-      socket.on 'end', =>
+      @_socket.on 'end', =>
         gutil.log "Connection to Listen lost"
 
       process.on 'SIGINT', =>
-        socket.destroy()
+        @_socket.destroy()
         gutil.log "Disconnected from Listen"
         process.exit 0
+
+
+  end: ->
+    @_socket.end()
+    @_socket.destroy()
 
 
   _connectToSocket: (callback) ->
