@@ -93,7 +93,6 @@ describe 'WatchNetwork', ->
       watchNetwork.initialize()
 
 
-
   describe 'file changes', ->
     watchNetwork = null
     beforeEach ->
