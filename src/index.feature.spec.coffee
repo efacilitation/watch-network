@@ -16,14 +16,6 @@ describe 'WatchNetwork Feature', ->
     , 250
 
 
-  after (done) ->
-    listenProcess.on 'close', ->
-      setTimeout ->
-        done()
-      , 250
-    listenProcess.kill 'SIGTERM'
-
-
   it 'should execute gulp tasks based on file patterns', (done) ->
     niftyTaskCalled = false
 

@@ -38,18 +38,17 @@ class WatchNetwork extends EventEmitter
     @_waitingOnRootFileChangeRetries = 0
     @_waitingOnRootFileChangeMaxRetries = 3
     @_waitingOnRootFileChangeIntervalId = null
-    @_initialized = false
-
     @lastChangeTime = null
-    @on 'changed', =>
-      @lastChangeTime = new Date()
-
+    @_initialized = false
 
 
   initialize: (callback = ->) ->
     gutil.log "Initializing"
     @on 'initialized', ->
       callback()
+
+    @on 'changed', =>
+      @lastChangeTime = new Date()
 
     gutil.log "Executing Tasks with onLoad flag"
     @_executeTasksOnLoad =>
@@ -81,6 +80,7 @@ class WatchNetwork extends EventEmitter
 
 
   _touchLocalRootFileAndWait: =>
+    @_waitingOnRootFileChangeRetries = 0
     do fn = =>
       if not @_waitingOnRootFileChange
         return
