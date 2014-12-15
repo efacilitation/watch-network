@@ -293,7 +293,7 @@ class WatchNetwork extends EventEmitter
   _executeGulpTasksWithRunSequence: (tasks, callback) ->
     gutil.log "Executing gulp-tasks with run-sequence '#{tasks}'"
     runSequence tasks..., ->
-      gutil.log "Executing gulp-tasks with run-sequence '#{tasks}'"
+      gutil.log "Finished Executing gulp-tasks with run-sequence '#{tasks}'"
       callback()
 
 
