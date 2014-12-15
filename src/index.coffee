@@ -16,8 +16,8 @@ defaultOptions =
   host: 'localhost'
   port: 4000
   rootFile: '.root'
-  onLoad: false
   flushDeferredTasks: true
+  gulp: null
   configs: []
 
 
@@ -31,15 +31,15 @@ class WatchNetwork extends EventEmitter
 
     @_rootFileRegExp = new RegExp "#{@_options.rootFile}$"
     @_localRootFilePath = path.join process.cwd(), @_options.rootFile
-    @_localRootPath = path.dirname @_localRootFilePath
+    @_tasks = {}
     @_executingTasks = false
     @_deferredTasks = []
     @_waitingOnRootFileChange = true
     @_waitingOnRootFileChangeRetries = 0
     @_waitingOnRootFileChangeMaxRetries = 3
     @_waitingOnRootFileChangeIntervalId = null
-    @lastChangeTime = null
     @_initialized = false
+    @lastChangeTime = null
 
 
   initialize: (callback = ->) ->
@@ -68,11 +68,21 @@ class WatchNetwork extends EventEmitter
         @end()
         process.exit 0
 
+    @
 
-  end: ->
+
+  task: (taskName, taskFunction) ->
+    @_tasks[taskName] = taskFunction
+    @
+
+
+  stop: ->
     @_socket.end()
     @_socket.destroy()
     gutil.log "Disconnected from Listen"
+    @removeAllListeners()
+    gutil.log "Removed all Listeners"
+    @
 
 
   _connectToSocket: (callback) ->
@@ -117,6 +127,7 @@ class WatchNetwork extends EventEmitter
     data = buffer.toString()
     gutil.log "Incoming Listen Data: #{data}"
     files = @_parseFilesFromListenData data
+    gutil.log "Parsed file paths from Data", files
 
     if @_waitingOnRootFileChange
       clearInterval @_waitingOnRootFileChangeIntervalId
@@ -127,9 +138,8 @@ class WatchNetwork extends EventEmitter
 
     else
       files = @_stripRemoteRootPathFromFiles files
-      gutil.log "Files changed: #{files.join(', ')}"
+      gutil.log "Files changed: #{files}"
       @_executeTasksMatchingChangedFiles files, =>
-        @_executingTasks = false
         @emit 'changed', files
         callback()
 
@@ -138,7 +148,7 @@ class WatchNetwork extends EventEmitter
     maxRetries = 3
     retry = 0
     while (true)
-      gutil.log "Got FileChange Events from Listen, searching for the RootFile in '#{files.join(',')}'"
+      gutil.log "Got FileChange Events from Listen, searching for the RootFile in '#{files}'"
       if @_searchRootFileInChangedFiles files
         gutil.log "Successfully detected RootFile and set RemoteRootPath to '#{@_remoteRoothPath}'!"
         @_waitingOnRootFileChange = false
@@ -198,7 +208,7 @@ class WatchNetwork extends EventEmitter
   _executeTasksOnLoad: (callback = ->) ->
     async.eachSeries @_options.configs, (config, done) =>
       if config.onLoad
-        @_executeTasksWithRunSequence config.tasks, done
+        @_executeTasks config.tasks, done
       else
         done()
 
@@ -206,38 +216,29 @@ class WatchNetwork extends EventEmitter
 
 
   _executeTasksMatchingChangedFiles: (files, callback = ->) ->
-    if not @_executingTasks
-      @_executingTasks = true
-
-      rootFileRelativePathToRootDir = path.relative @_localRootFilePath, process.cwd()
-      async.eachSeries files, (filename, done) =>
-        filename = filename.replace "#{@_localRootPath}/", ''
-        if @_rootFileRegExp.test filename
-          done()
-
-        else
-          tasks = @_getTasksFromConfigMatchingTheFilename filename
-          if tasks.length > 0
-            @_executeTasksWithRunSequence tasks, done
-
-          else
-            done()
-
-      , =>
-        if @_deferredTasks.length > 0
-          @_executeDeferredTasks @_deferredTasks, callback
-
-        else
-          callback()
-
-    else
+    if @_executingTasks
       for filename in files
         tasks = @_getTasksFromConfigMatchingTheFilename filename
-        if not @_options.flushDeferredTasks
-          @_deferredTasks.push tasks
+        @_deferredTasks = @_deferredTasks.concat tasks
 
-      gutil.log "Deferring Tasks '#{tasks.join(',')}'"
-      callback()
+      gutil.log "Deferred Tasks '#{@_deferredTasks}'"
+      return callback()
+
+    @_executingTasks = true
+    async.eachSeries files, (filename, done) =>
+      if @_rootFileRegExp.test filename
+        return done()
+
+      tasks = @_getTasksFromConfigMatchingTheFilename filename
+      if tasks.length <= 0
+        return done()
+
+      @_executeTasks tasks, done
+
+    , =>
+      @_executeDeferredTasks =>
+        @_executingTasks = false
+        callback()
 
 
   _getTasksFromConfigMatchingTheFilename: (filename) ->
@@ -245,31 +246,54 @@ class WatchNetwork extends EventEmitter
     for config in @_options.configs
       continue if not config.patterns or not config.tasks
 
-      patterns = _.flatten [config.patterns]
-      for pattern in patterns
+      if typeof config.patterns is 'string'
+        config.patterns = [config.patterns]
+
+      for pattern in config.patterns
         if minimatch filename, pattern
           gutil.log "Pattern '#{pattern}' matched. Queueing tasks '#{config.tasks}'"
-          tasks.push config.tasks
+          tasks = tasks.concat config.tasks
 
     tasks
 
 
-  _executeTasksWithRunSequence: (tasks, callback) ->
+  _executeTasks: (tasks, callback) ->
     if typeof tasks is 'string'
       tasks = [tasks]
 
-    tasks = _.flatten tasks
     gutil.log "Executing tasks '#{tasks}'"
-    runSequence tasks..., ->
-      gutil.log "Finished tasks '#{tasks}'"
-      callback()
+    async.eachSeries tasks, (task, done) =>
+      if not @_tasks[task] or typeof @_tasks[task] isnt 'function'
+        return done()
+
+      @_tasks[task] done
+    , =>
+      gutil.log "Finished Executing tasks"
+      if @_options.gulp
+        @_executeGulpTasksWithRunSequence tasks, callback
+      else
+        callback()
 
 
   _executeDeferredTasks: (callback) ->
+    if @_deferredTasks.length <= 0
+      return callback()
+
+    if @_options.flushDeferredTasks
+      gutil.log "Flushing deferred tasks '#{@_deferredTasks}'"
+      return callback()
+
     gutil.log "Executing deferred tasks"
-    @_executeTasksWithRunSequence @_deferredTasks, ->
+    @_executeTasks @_deferredTasks, ->
       gutil.log "Finished deferred tasks"
       @_deferredTasks = []
+      callback()
+
+
+  _executeGulpTasksWithRunSequence: (tasks, callback) ->
+    gutil.log "Executing gulp-tasks with run-sequence '#{tasks}'"
+    runSequence tasks..., ->
+      gutil.log "Executing gulp-tasks with run-sequence '#{tasks}'"
       callback()
 
 

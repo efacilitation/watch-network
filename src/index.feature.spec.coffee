@@ -14,7 +14,7 @@ describe 'WatchNetwork Feature', ->
     listenProcess = spawn "listen", ["-d", "./tmp"]
     setTimeout ->
       done()
-    , 250
+    , 500
 
 
   afterEach (done) ->
@@ -22,11 +22,11 @@ describe 'WatchNetwork Feature', ->
       setTimeout ->
         del.sync './tmp', force: true
         done()
-      , 250
+      , 500
     listenProcess.kill 'SIGTERM'
 
 
-  it 'should execute gulp tasks based on file patterns', (done) ->
+  it 'should execute tasks based on file patterns', (done) ->
     niftyTaskCalled = false
 
     gulp = require 'gulp'
@@ -52,7 +52,7 @@ describe 'WatchNetwork Feature', ->
         niftyMatched = true
         expect(files[niftyIndex]).to.equal 'file.ext'
         expect(niftyTaskCalled).to.be.true
-        watch.end()
+        watch.stop()
         done()
 
     watch.initialize ->
@@ -73,11 +73,9 @@ describe 'WatchNetwork Feature', ->
 
     gulp.task 'second', (next) ->
       secondTaskCalled = true
-      setTimeout ->
-        expect(firstTaskCalled).to.be.true
-        watch.end()
-        done()
-      , 250
+      expect(firstTaskCalled).to.be.true
+      watch.stop()
+      done()
 
 
     WatchNetwork = require './'

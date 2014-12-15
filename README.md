@@ -14,9 +14,31 @@
 
 Scenario: You use Vagrant/VirtualBox in your workflow to have services and configurations in an encapsulated environment. For developing purposes you now sync a local directory into the VM using vboxfs, nfs or similar. In your VM you want to use watcher facilities for developing-concerns, but for some reason triggering inotify seems to be troublesome for [NFS](http://stackoverflow.com/questions/4231243/inotify-with-nfs) and [vboxfs](https://www.virtualbox.org/ticket/10660) as well.
 
-Solution: Based on the [Listen](https://github.com/guard/listen) Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)", this plugin will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. This can be useful for virtualized development environments when file events are unavailable or unreliable, as is the case with [Vagrant](https://github.com/mitchellh/vagrant) / [VirtualBox](https://www.virtualbox.org). Vagrants [rsync-auto](http://docs.vagrantup.com/v2/cli/rsync-auto.html) works in a similar way and is based on Listen too.
+Solution: Based on the [Listen](https://github.com/guard/listen) Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)" we will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. This can be useful for virtualized development environments when file events are unavailable or unreliable, as is the case with [Vagrant](https://github.com/mitchellh/vagrant) / [VirtualBox](https://www.virtualbox.org). Vagrants [rsync-auto](http://docs.vagrantup.com/v2/cli/rsync-auto.html) works in a similar way and is based on Listen too.
 
-> Listen >2.8 required
+
+
+## Listen Usage
+
+> Listen Version >= 2.8 required
+
+The listen gem provides the `listen` executable. So you need to install
+
+```
+gem install listen
+```
+
+or just bundle with the provided Gemfile
+
+```
+bundle
+```
+
+To start the listen broadcast process inside your *local* project directory you then can
+
+```
+listen -v -d .
+```
 
 
 ## Usage standalone
@@ -63,13 +85,14 @@ watch = WatchNetWork({
   ]
 });
 
-watch.task('another:thing', function() {
-  // custom defined tasks take precedence over gulp tasks
+watch.task('another:thing', function(callback) {
+  // callback() if task is finished
 });
 
 watch.initialize();
-
 ```
+
+> Note: If you define a task on the watcher and on gulp - both will get executed, locally defined tasks first.
 
 
 ## API
@@ -106,6 +129,11 @@ Params:
 - taskFunction Function Task Function
 
 
+#### stop
+
+Stops the watcher by destroying the listen socket and removing all event listeners. Be sure to cleanup the watcher instance yourself.
+
+
 #### on
 
 Register Event Listener
@@ -127,11 +155,13 @@ watch.on('changed', function(changedFiles) {
 watch.initialize()
 ```
 
+> Note: WatchNetwork extends [EventEmitter](http://nodejs.org/api/events.html)
+
 
 ### Available Events
 
-`initialized` Watcher initialized (RootFile-Sync completed)
-`changed` Watcher detected file changes, first parameter will include the changed files as an array
+- `initialized` Watcher initialized (RootFile-Sync completed)
+- `changed` Watcher detected file changes, first parameter will include the changed files as an array
 
 
 ## Determining Base Path

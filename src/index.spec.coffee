@@ -1,11 +1,11 @@
 fs = require 'fs'
 
-
 describe 'WatchNetwork', ->
   asyncStub = null
   fsStub = null
   socketStub = null
   WatchNetwork = null
+  watchNetwork = null
   netMockery = null
   beforeEach ->
     gutilStub =
@@ -21,6 +21,7 @@ describe 'WatchNetwork', ->
     socketStub =
       on: sandbox.stub()
       end: sandbox.stub()
+      destroy: sandbox.stub()
     netMockery =
       connect: sandbox.stub().returns socketStub
     netMockery.connect.yields()
@@ -32,14 +33,18 @@ describe 'WatchNetwork', ->
     WatchNetwork = require './'
 
 
+  afterEach ->
+    watchNetwork.stop()
+
+
   describe '#initialize', ->
     it 'should net.connect', ->
-      WatchNetwork().initialize()
+      watchNetwork = WatchNetwork().initialize()
       expect(netMockery.connect).to.have.been.called
 
 
     it 'should net.connect to the given host and port', ->
-      WatchNetwork(
+      watchNetwork = WatchNetwork(
         host: 'test'
         port: '1337'
       ).initialize()
@@ -79,14 +84,14 @@ describe 'WatchNetwork', ->
 
     it 'should strip everything from the filepaths from the .root file and up', (done) ->
       fileBuffer = toString: ->
-        JSON.stringify [null, null, "/path/to/tmp", '.root']
+        JSON.stringify [null, null, "/path/to/.tmp", '.root']
 
       socketStub.on.withArgs('data').yields fileBuffer
 
       watchNetwork = WatchNetwork
-        rootFile: './tmp/.root'
-      watchNetwork.on 'changed', (files) ->
-        expect(files[0]).to.not.contain 'tmp'
+        rootFile: '.tmp/.root'
+      watchNetwork.once 'changed', (files) ->
+        expect(files[0]).to.not.contain '.tmp'
         expect(files[0]).to.equal '.root'
         done()
 
@@ -94,7 +99,6 @@ describe 'WatchNetwork', ->
 
 
   describe 'file changes', ->
-    watchNetwork = null
     beforeEach ->
       fileBuffer = toString: ->
         JSON.stringify [null, null, '/path/to', '.root']
@@ -106,7 +110,7 @@ describe 'WatchNetwork', ->
 
 
     it 'should handle multiple file changes at once after initializing', (done) ->
-      watchNetwork.on 'changed', (files) ->
+      watchNetwork.once 'changed', (files) ->
         expect(files).to.deep.equal [
           'modified/file'
           'added/file'
@@ -122,13 +126,13 @@ describe 'WatchNetwork', ->
       socketStub.on.withArgs('data').yield fileBuffer
 
 
-  describe 'executing deferred tasks', (done) ->
+  describe 'defer tasks', (done) ->
+    watchNetworkOptions = null
     firstTaskCalled = false
     firstTaskCallback = null
     secondTaskCalled = false
     secondTaskCallback = null
-    watchNetwork = null
-    beforeEach (done) ->
+    beforeEach ->
       fileBuffer = toString: ->
         JSON.stringify [null, null, '/path/to', '.root']
 
@@ -143,9 +147,8 @@ describe 'WatchNetwork', ->
         secondTaskCalled = true
         secondTaskCallback = next
 
-      watchNetwork = WatchNetwork
+      watchNetworkOptions =
         gulp: gulp
-        flushDeferredTasks: false
         configs: [
           {
             patterns: 'first'
@@ -156,21 +159,46 @@ describe 'WatchNetwork', ->
             tasks: 'second'
           }
         ]
+
+
+    it 'should defer executing new tasks if other tasks are already running', ->
+      watchNetwork = WatchNetwork watchNetworkOptions
       watchNetwork.initialize ->
-        done()
+
+        fileBuffer = toString: ->
+          JSON.stringify [null, null, '/path/to', 'first']
+        socketStub.on.withArgs('data').yield fileBuffer
+        expect(firstTaskCalled).to.be.true
+
+        fileBuffer = toString: ->
+          JSON.stringify [null, null, '/path/to', 'second']
+        socketStub.on.withArgs('data').yield fileBuffer
+        expect(secondTaskCalled).to.be.false
+
+        firstTaskCallback()
+
+        expect(secondTaskCalled).to.be.false
 
 
-    it 'should defer executing tasks if other tasks are already running', ->
-      fileBuffer = toString: ->
-        JSON.stringify [null, null, '/path/to', 'first']
-      socketStub.on.withArgs('data').yield fileBuffer
-      expect(firstTaskCalled).to.be.true
+    it 'should execute deferred tasks if other running tasks finish', (done) ->
+      watchNetworkOptions.flushDeferredTasks = false
+      watchNetwork = WatchNetwork watchNetworkOptions
+      watchNetwork.initialize ->
 
-      fileBuffer = toString: ->
-        JSON.stringify [null, null, '/path/to', 'second']
-      socketStub.on.withArgs('data').yield fileBuffer
-      expect(secondTaskCalled).to.be.false
+        fileBuffer = toString: ->
+          JSON.stringify [null, null, '/path/to', 'first']
+        socketStub.on.withArgs('data').yield fileBuffer
+        expect(firstTaskCalled).to.be.true
 
-      firstTaskCallback()
+        process.nextTick =>
 
-      expect(secondTaskCalled).to.be.true
+          fileBuffer = toString: ->
+            JSON.stringify [null, null, '/path/to', 'second']
+          socketStub.on.withArgs('data').yield fileBuffer
+          expect(secondTaskCalled).to.be.false
+
+          firstTaskCallback()
+
+          expect(secondTaskCalled).to.be.true
+
+          done()
