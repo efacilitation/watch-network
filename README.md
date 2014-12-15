@@ -63,7 +63,7 @@ watch = WatchNetWork({
   ]
 });
 
-gulp.task('another:thing', function() {
+watch.task('another:thing', function() {
   // custom defined tasks take precendence over gulp tasks
 });
 
