@@ -4,19 +4,46 @@
 
 <table>
 <tr>
-<td>Package</td><td>gulp-watch-network</td>
+<td>Package</td><td>watch-network</td>
 </tr>
 <tr>
 <td>Description</td>
-<td>Watch File Events received over the Network using net.connect</td>
+<td>Execute (gulp-)tasks based on file events received over the network</td>
 </tr>
 </table>
 
-Based on the Listen Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)", this plugin will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. This can be useful for virtualized development environments when file events are unavailable, as is the case with [Vagrant](https://github.com/mitchellh/vagrant) / [VirtualBox](https://www.virtualbox.org).
+Scenario: You use Vagrant/VirtualBox in your workflow to have services and configurations in an encapsulated environment. For developing purposes you now sync a local directory into the VM using vboxfs, nfs or similar. In your VM you want to use watcher facilities for developing-concerns, but for some reason triggering inotify seems to be troublesome for [NFS](http://stackoverflow.com/questions/4231243/inotify-with-nfs) and [vboxfs](https://www.virtualbox.org/ticket/10660) as well.
+
+Solution: Based on the [Listen](https://github.com/guard/listen) Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)", this plugin will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. This can be useful for virtualized development environments when file events are unavailable or unreliable, as is the case with [Vagrant](https://github.com/mitchellh/vagrant) / [VirtualBox](https://www.virtualbox.org). Vagrants [rsync-auto](http://docs.vagrantup.com/v2/cli/rsync-auto.html) works in a similar way and is based on Listen too.
 
 > Listen >2.8 required
 
-## Usage
+
+## Usage standalone
+
+```javascript
+WatchNetwork = require("gulp-watch-network");
+
+watch = WatchNetWork({
+  configs: [
+    {
+      patterns: 'lib/*.coffee'
+      tasks: 'something:important'
+      onLoad: true
+    }
+  ]
+});
+
+watch.task('something:important', function(changedFiles) {
+  // ..
+});
+
+watch.initialize();
+
+```
+
+
+## Usage with Gulp
 
 ```javascript
 gulp = require('gulp');
@@ -28,29 +55,101 @@ WatchNetwork = require("gulp-watch-network");
 
 watch = WatchNetWork({
   gulp: gulp,
-  host: '127.0.0.1',
   configs: [
     {
-      tasks: 'something:important'
-      onLoad: true
-    }, {
       patterns: 'lib/*.coffee'
       tasks: ['something:important', 'another:thing']
     }
   ]
 });
 
-watch.on('changed', function(files) {
-  // .. files changed..
-});
-
-watch.on('initialized', function(files) {
-  // .. watcher finished initializing..
+gulp.task('another:thing', function() {
+  // custom defined tasks take precendence over gulp tasks
 });
 
 watch.initialize();
 
 ```
+
+
+## API
+
+#### WatchNetwork
+
+Params:
+
+- `host` String Listen Host to connect to (default `'localhost'`)
+- `port` String|Number Listen Port to connect to (default `4000`)
+- `rootFile` String Name of the RootFile which determines the basepath (relevant for `patterns`) (default `'.root'`)
+- `flushDeferredTasks` Boolean Wether to flush tasks which got deferred while other tasks are already running (default `true`)
+- `gulp` Object Gulp Object with defined Tasks which will get executed with [run-sequence](https://www.npmjs.com/package/run-sequence) (default `null`)
+- `configs` Array Contains Pattern/Task Configuration Object
+  - `patterns` String|Array Pattern to match against FileChange based on [minimatch](https://www.npmjs.com/package/minimatch)
+  - `tasks` String|Array Tasks to execute if patterns match
+  - `onLoad` Boolean Wether to execute the `tasks` once while `initialize`-Phase (default `false`)
+
+
+#### initialize
+
+Initialize the Watcher.
+
+Params:
+- callback Function Callback which gets called after the Watcher initialized
+
+
+#### task
+
+Define Task Function which gets executed if patterns match
+
+Params:
+- taskName String Name of the task
+- taskFunction Function Task Function
+
+
+#### on
+
+Register Event Listener
+
+Params:
+- eventName String Name of the event
+- subscriberFn Function Function which gets called when event fires
+
+Example:
+
+```javascript
+watch = WatchNetwork();
+watch.on('initialized', function() {
+  // ..
+});
+watch.on('changed', function(changedFiles) {
+  // ..
+});
+watch.initialize()
+```
+
+
+### Available Events
+
+`initialized` Watcher initialized (RootFile-Sync completed)
+`changed` Watcher detected file changes, first parameter will include the changed files as an array
+
+
+## Determining Base Path
+
+Given
+
+- we have a local working directory: `/home/wn/work`
+- we have a synced version inside the VM: `/vagrant`
+
+Now if we initialize WatchNetwork inside the VM it does the following:
+
+- Touch the `RootFile` (default `process.cwd()` + `.root`)
+- Wait for FileChange which contains `.root`
+- Compute RemoteRoothPath (basedir rootfile): `/home/wn/work`
+- Initialized.
+- On follow-up FileChanges we will strip the RemoteRootPath
+  - Changing `/home/wn/work/foo.js`
+  - What gets matched against the patterns is `foo.js` then
 
 
 ## License
