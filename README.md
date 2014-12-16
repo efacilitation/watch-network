@@ -14,7 +14,7 @@
 
 *Scenario:* You use [Vagrant](https://github.com/mitchellh/vagrant)/[VirtualBox](https://www.virtualbox.org) in your workflow to have services and configurations in an encapsulated environment. For developing purposes you now sync a local directory into the VM using vboxfs, nfs, rsync or similar. In your VM you want to use watcher facilities for developing-concerns, but for some reason triggering [inotify](http://man7.org/linux/man-pages/man7/inotify.7.html) over the network seems to be [troublesome](http://stackoverflow.com/questions/4231243/inotify-with-nfs) or [unreliable](https://www.virtualbox.org/ticket/10660).
 
-*Solution:* Based on the [Listen](https://github.com/guard/listen) Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)" we will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. Vagrants [rsync-auto](http://docs.vagrantup.com/v2/cli/rsync-auto.html) is based on Listen TCP too.
+*Solution:* Based on the [Listen](https://github.com/guard/listen) Feature "[Forwarding file events over TCP](https://github.com/guard/listen#forwarding-file-events-over-tcp)" `watch-network` will connect to a Listen broadcaster as a receiver and watch for File Events. Upon receiving a File Event it will execute `tasks` based on `patterns`. Vagrants [rsync-auto](http://docs.vagrantup.com/v2/cli/rsync-auto.html) is based on Listen TCP too.
 
 If you're looking for an alternative Listen implementation in Go, there's [`GoListen`](https://github.com/ekino/golisten) which has also a guide on how you can use it with `watch-network`.
 
