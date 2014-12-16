@@ -180,9 +180,9 @@ Given
 
 Now if we initialize WatchNetwork inside the VM it does the following:
 
-- Touch the `RootFile` (default `process.cwd()` + `.root`)
+- Touch the `RootFile` (default `process.cwd()` + `rootFile`)
 - Wait for FileChange which contains `.root`
-- Compute RemoteRoothPath (basedir rootfile): `/home/wn/work`
+- Compute RemoteRoothPath (basedir of RootFile): `/home/wn/work`
 - Initialized.
 - On follow-up FileChanges we will strip the RemoteRootPath
   - Changing `/home/wn/work/foo.js`
