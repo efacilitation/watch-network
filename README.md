@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/efacilitation/gulp-watch-network.svg?branch=master)](https://travis-ci.org/efacilitation/gulp-watch-network)
+[![Build Status](https://travis-ci.org/efacilitation/watch-network.svg?branch=master)](https://travis-ci.org/efacilitation/watch-network)
 
 ## Information
 
