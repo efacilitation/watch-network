@@ -42,6 +42,11 @@ To start the listen broadcast process inside your *local* project directory you 
 listen -v -d .
 ```
 
+## Install
+
+```
+npm install watch-network
+```
 
 ## Usage
 
@@ -94,7 +99,7 @@ watch.task('another:thing', function(callback) {
 watch.initialize();
 ```
 
-> Note: If you define a task on the watcher and on gulp - both will get executed, locally defined tasks first.
+> Note: If you define a task with the same name on the watcher and on gulp - both will get executed. On the watcher defined tasks execute first.
 
 
 ## API
