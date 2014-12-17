@@ -71,7 +71,7 @@ describe 'WatchNetwork Feature', ->
         next()
       , 250
 
-    gulp.task 'second', (next) ->
+    gulp.task 'second', ->
       secondTaskCalled = true
       expect(firstTaskCalled).to.be.true
       watch.stop()

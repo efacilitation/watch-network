@@ -266,7 +266,12 @@ class WatchNetwork extends EventEmitter
       if not @_tasks[task] or typeof @_tasks[task] isnt 'function'
         return done()
 
-      @_tasks[task] done
+      if @_tasks[task].arguments.length is 0
+        @_tasks[task] done
+      else
+        @_tasks[task]()
+        done()
+
     , =>
       gutil.log "Finished Executing tasks"
       if @_options.gulp

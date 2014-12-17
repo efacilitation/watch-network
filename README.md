@@ -56,15 +56,15 @@ WatchNetwork = require("gulp-watch-network");
 watch = WatchNetWork({
   configs: [
     {
-      patterns: 'lib/*.coffee'
-      tasks: 'something:important'
+      patterns: 'src/*.js',
+      tasks: 'something:important',
       onLoad: true
     }
   ]
 });
 
-watch.task('something:important', function(changedFiles) {
-  // ..
+watch.task('something:important', function(callback) {
+  // if you define the optional `callback` function the watcher will wait until you call it
 });
 
 watch.initialize();
@@ -86,14 +86,14 @@ watch = WatchNetWork({
   gulp: gulp,
   configs: [
     {
-      patterns: 'lib/*.coffee'
+      patterns: 'src/*.js',
       tasks: ['something:important', 'another:thing']
     }
   ]
 });
 
-watch.task('another:thing', function(callback) {
-  // callback() if task is finished
+watch.task('another:thing', function() {
+  // ..
 });
 
 watch.initialize();
