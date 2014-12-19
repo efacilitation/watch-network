@@ -77,10 +77,6 @@ class WatchNetwork extends EventEmitter
     @
 
 
-  _wat: (buffer, callback = ->) ->
-
-
-
   task: (taskName, taskFunction) ->
     @_tasks[taskName] = taskFunction
     @
