@@ -65,7 +65,7 @@ watch = WatchNetWork({
 
 watch.task('something:important', function(changedFile, callback) {
   // `changedFile` which file change caused the task to run
-  // `callback` function the watcher will wait until you call it
+  // `callback` the watcher will wait until you call the callback
   //
   // you can omit both parameters to let the task run synchronously
 });
@@ -160,7 +160,7 @@ watch.on('initialized', function() {
   // ..
 });
 watch.on('changed', function(changedFiles) {
-  // ..
+  // changedFiles will include *all* changed files
 });
 watch.initialize()
 ```

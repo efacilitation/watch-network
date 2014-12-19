@@ -16,9 +16,11 @@ defaultOptions =
   host: 'localhost'
   port: 4000
   rootFile: '.root'
+  fileChangeBufferTime: 100
   flushDeferredTasks: true
   gulp: null
   configs: []
+  logLevel: 'info'
 
 
 class WatchNetwork extends EventEmitter
@@ -38,14 +40,19 @@ class WatchNetwork extends EventEmitter
     @_waitingOnRootFileChangeRetries = 0
     @_waitingOnRootFileChangeMaxRetries = 3
     @_waitingOnRootFileChangeIntervalId = null
+    @_queuingFileChanges = false
+    @_queuedChangedFiles = []
     @_initialized = false
     @lastChangeTime = null
     @log = new Logger
+    @log.setLogLevel @_options.logLevel
 
 
   initialize: (callback = ->) ->
     @log.info "Initializing"
-    @on 'initialized', ->
+
+    @on 'initialized', =>
+      @log.info "Initialized"
       callback()
 
     @on 'changed', =>
@@ -57,9 +64,8 @@ class WatchNetwork extends EventEmitter
       @_socket = @_connectToSocket =>
         @log.info "Connected to Listen at #{@_options.host}:#{@_options.port}"
 
-      @_socket.on 'data', (data) =>
-        @log.debug "Receiving Data from Listen"
-        @_handleIncomingDataFromListen arguments...
+      @_socket.on 'data', (buffer) =>
+        @_handleIncomingDataFromListen buffer.toString()
 
       @_socket.on 'end', =>
         @log.info "Connection to Listen lost"
@@ -69,6 +75,10 @@ class WatchNetwork extends EventEmitter
         process.exit 0
 
     @
+
+
+  _wat: (buffer, callback = ->) ->
+
 
 
   task: (taskName, taskFunction) ->
@@ -95,27 +105,29 @@ class WatchNetwork extends EventEmitter
 
 
   _touchLocalRootFileAndWait: =>
-    @_waitingOnRootFileChangeRetries = 0
-    do fn = =>
+    if @_waitingOnRootFileChangeRetries > @_waitingOnRootFileChangeMaxRetries
+      err = "No change event after touching the RootFile, aborting..
+            (max retries reached: #{@_waitingOnRootFileChangeMaxRetries})"
+      @log.debug err
+      throw new Error err
+
+    @_touchLocalRootFile()
+
+    retries = ""
+    if @_waitingOnRootFileChangeRetries > 0
+      retries = " Retry #{@_waitingOnRootFileChangeRetries}/#{@_waitingOnRootFileChangeMaxRetries}: "
+
+    @log.debug "Waiting for incoming Listen Data..#{retries}"
+
+    @_waitingOnRootFileChangeRetries++
+
+    setTimeout =>
       if not @_waitingOnRootFileChange
         return
 
-      if @_waitingOnRootFileChangeRetries > @_waitingOnRootFileChangeMaxRetries
-        err = "No change event after touching the RootFile, aborting..
-              (max retries reached: #{@_waitingOnRootFileChangeMaxRetries})"
-        @log.debug err
-        throw new Error err
-
-      @_touchLocalRootFile()
-
-      retries = ""
-      if @_waitingOnRootFileChangeRetries > 0
-        retries = "Retry #{@_waitingOnRootFileChangeRetries}/#{@_waitingOnRootFileChangeMaxRetries}: "
-      @log.debug "#{retries}Waiting for incoming Listen Data.."
-
       @_waitingOnRootFileChangeRetries++
-
-    @_waitingOnRootFileChangeIntervalId = setInterval fn, 500
+      @_touchLocalRootFile()
+    , 100
 
 
   _touchLocalRootFile: ->
@@ -123,53 +135,57 @@ class WatchNetwork extends EventEmitter
     fs.writeFileSync @_localRootFilePath
 
 
-  _handleIncomingDataFromListen: (buffer, callback = ->) =>
-    data = buffer.toString()
+  _handleIncomingDataFromListen: (data, callback = ->) =>
     @log.debug "Incoming Listen Data: #{data}"
+
     files = @_parseFilesFromListenData data
-    @log.debug "Parsed file paths from Data", files
 
     if @_waitingOnRootFileChange
-      clearInterval @_waitingOnRootFileChangeIntervalId
       @_searchRootFileInChangedFilesAndWait files, =>
+        @_waitingOnRootFileChange = false
+        @_waitingOnRootFileChangeRetries = 0
         files = @_stripRemoteRootPathFromFiles files
-        @emit 'changed', files
         callback()
+      return
 
-    else
-      files = @_stripRemoteRootPathFromFiles files
-      @log.debug "Files changed: #{files}"
+    files = @_stripRemoteRootPathFromFiles files
+
+    @log.info "Changed Files: #{files}"
+
+    if @_queuingFileChanges
+      @_queuedChangedFiles = @_queuedChangedFiles.concat files
+      return
+
+    @log.info "Waiting for #{@_options.fileChangeBufferTime}ms to receive more File Changes"
+    @_queuedChangedFiles = @_queuedChangedFiles.concat files
+    @_queuingFileChanges = setTimeout =>
+      files = @_arrayUnique @_queuedChangedFiles
+      @log.info "Handling queued File Changes", files
+      @_queuingFileChanges = false
+
+      @log.debug "Parsed file paths from Liste Data", files
       @_executeTasksMatchingChangedFiles files, =>
         @emit 'changed', files
         callback()
 
+      @_queuedChangedFiles = []
+
+    , @_options.fileChangeBufferTime
+
+
 
   _searchRootFileInChangedFilesAndWait: (files, callback) ->
-    maxRetries = 3
-    retry = 0
-    while (true)
-      @log.debug "Got FileChange Events from Listen, searching for the RootFile in '#{files}'"
-      if @_searchRootFileInChangedFiles files
-        @log.debug "Successfully detected RootFile and set RemoteRootPath to '#{@_remoteRoothPath}'!"
-        @_waitingOnRootFileChange = false
-        @_removeLocalRootFile()
-        @emit 'initialized', files
-        @_initialized = true
-        callback()
-        break
+    @log.debug "Got FileChange Events from Listen, searching for the RootFile in '#{files}'"
+    if @_searchRootFileInChangedFiles files
+      @log.debug "Successfully detected RootFile and set RemoteRootPath to '#{@_remoteRoothPath}'!"
+      @_removeLocalRootFile()
+      @_initialized = true
+      callback()
+      @emit 'initialized', files
 
-      else
-        retry++
-        if retry <= maxRetries
-          @log.debug "Couldnt find the RootFile in the Changed Files, retrying.. #{retry}/#{maxRetries}"
-        else
-          err = "Couldnt find the RootFile in the Changed Files, aborting.. (max retries reached: #{maxRetries})"
-          @log.debug err
-          throw new Error err
-
-        @_waitingOnRootFileChange = true
-        @_removeLocalRootFile()
-        @_touchLocalRootFileAndWait()
+    else
+      @_removeLocalRootFile()
+      @_touchLocalRootFileAndWait()
 
 
   _searchRootFileInChangedFiles: (files) ->
@@ -326,6 +342,13 @@ class WatchNetwork extends EventEmitter
     runSequence tasks..., =>
       @log.info "Finished Executing gulp-tasks with run-sequence '#{tasks}'"
       callback()
+
+
+  _arrayUnique: (a) ->
+    a.reduce (p, c) ->
+      p.push c if p.indexOf(c) < 0
+      return p
+    , []
 
 
 class Logger

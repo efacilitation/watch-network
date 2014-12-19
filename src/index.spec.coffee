@@ -79,8 +79,10 @@ describe 'WatchNetwork', ->
 
 
     it 'should strip everything from the filepaths from the .root file and up', (done) ->
+      require 'flush-timeouts'
+
       fileBuffer = toString: ->
-        JSON.stringify [null, null, "/path/to/.tmp", '.root']
+        JSON.stringify [null, null, '/path/to/.tmp', '.root']
 
       socketStub.on.withArgs('data').yields fileBuffer
 
@@ -88,10 +90,19 @@ describe 'WatchNetwork', ->
         rootFile: '.tmp/.root'
       watchNetwork.once 'changed', (files) ->
         expect(files[0]).to.not.contain '.tmp'
-        expect(files[0]).to.equal '.root'
+        expect(files[0]).to.equal 'file'
         done()
 
-      watchNetwork.initialize()
+      watchNetwork.initialize ->
+        global.flushTimeouts()
+
+        fileBuffer = toString: ->
+          JSON.stringify [null, null, "/path/to/.tmp", 'file']
+
+        socketStub.on.withArgs('data').yield fileBuffer
+
+        global.flushTimeouts()
+        global.setTimeout = global.originalSetTimeout
 
 
   describe 'file changes', ->
@@ -157,26 +168,35 @@ describe 'WatchNetwork', ->
         ]
 
 
-    it 'should defer executing new tasks if other tasks are already running', ->
+    it 'should defer executing new tasks if other tasks are already running', (done) ->
+      require 'flush-timeouts'
+
       watchNetwork = WatchNetwork watchNetworkOptions
       watchNetwork.initialize ->
 
         fileBuffer = toString: ->
           JSON.stringify [null, null, '/path/to', 'first']
         socketStub.on.withArgs('data').yield fileBuffer
+        global.flushTimeouts()
         expect(firstTaskCalled).to.be.true
 
         fileBuffer = toString: ->
           JSON.stringify [null, null, '/path/to', 'second']
         socketStub.on.withArgs('data').yield fileBuffer
+        global.flushTimeouts()
         expect(secondTaskCalled).to.be.false
 
         firstTaskCallback()
 
         expect(secondTaskCalled).to.be.false
 
+        global.setTimeout = global.originalSetTimeout
+        done()
+
 
     it 'should execute deferred tasks if other running tasks finish', (done) ->
+      require 'flush-timeouts'
+
       watchNetworkOptions.flushDeferredTasks = false
       watchNetwork = WatchNetwork watchNetworkOptions
       watchNetwork.initialize ->
@@ -184,17 +204,19 @@ describe 'WatchNetwork', ->
         fileBuffer = toString: ->
           JSON.stringify [null, null, '/path/to', 'first']
         socketStub.on.withArgs('data').yield fileBuffer
+        global.flushTimeouts()
         expect(firstTaskCalled).to.be.true
 
-        process.nextTick =>
+        fileBuffer = toString: ->
+          JSON.stringify [null, null, '/path/to', 'second']
+        socketStub.on.withArgs('data').yield fileBuffer
+        global.flushTimeouts()
+        expect(secondTaskCalled).to.be.false
 
-          fileBuffer = toString: ->
-            JSON.stringify [null, null, '/path/to', 'second']
-          socketStub.on.withArgs('data').yield fileBuffer
-          expect(secondTaskCalled).to.be.false
+        firstTaskCallback()
 
-          firstTaskCallback()
+        expect(secondTaskCalled).to.be.true
 
-          expect(secondTaskCalled).to.be.true
+        global.setTimeout = global.originalSetTimeout
+        done()
 
-          done()
