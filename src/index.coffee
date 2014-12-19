@@ -16,7 +16,7 @@ defaultOptions =
   host: 'localhost'
   port: 4000
   rootFile: '.root'
-  fileChangeBufferTime: 100
+  fileSyncBufferTime: 50
   flushDeferredTasks: true
   gulp: null
   configs: []
@@ -35,7 +35,7 @@ class WatchNetwork extends EventEmitter
     @_localRootFilePath = path.join process.cwd(), @_options.rootFile
     @_tasks = {}
     @_executingTasks = false
-    @_deferredTasks = []
+    @_deferredTaskMatches = []
     @_waitingOnRootFileChange = true
     @_waitingOnRootFileChangeRetries = 0
     @_waitingOnRootFileChangeMaxRetries = 3
@@ -146,27 +146,25 @@ class WatchNetwork extends EventEmitter
 
     files = @_stripRemoteRootPathFromFiles files
 
-    @log.info "Changed Files: #{files}"
-
     if @_queuingFileChanges
       @_queuedChangedFiles = @_queuedChangedFiles.concat files
       return
 
-    @log.info "Waiting for #{@_options.fileChangeBufferTime}ms to receive more File Changes"
+    @log.debug "Waiting for #{@_options.fileSyncBufferTime}ms on file changes for sync and buffering purposes"
     @_queuedChangedFiles = @_queuedChangedFiles.concat files
     @_queuingFileChanges = setTimeout =>
       files = @_arrayUnique @_queuedChangedFiles
-      @log.info "Handling queued File Changes", files
+      @log.debug "Handling queued File Changes", files
       @_queuingFileChanges = false
 
-      @log.debug "Parsed file paths from Liste Data", files
+      @log.info "Changed Files: #{files.join ', '}"
       @_executeTasksMatchingChangedFiles files, =>
         @emit 'changed', files
         callback()
 
       @_queuedChangedFiles = []
 
-    , @_options.fileChangeBufferTime
+    , @_options.fileSyncBufferTime
 
 
 
@@ -230,11 +228,14 @@ class WatchNetwork extends EventEmitter
 
   _executeTasksMatchingChangedFiles: (files, callback = ->) ->
     if @_executingTasks
+      tasks = []
       for filename in files
-        tasks = @_matchFilenameAgainstConfigsPatterns filename
-        @_deferredTasks = @_deferredTasks.concat tasks
+        matches = @_matchFilenameAgainstConfigsPatterns filename
+        @_deferredTaskMatches = @_deferredTaskMatches.concat matches
+        for match in matches
+          tasks = tasks.concat match.tasks
 
-      @log.debug "Deferred Tasks '#{@_deferredTasks}'"
+      @log.info "Deferred Tasks '#{tasks}'"
       return callback()
 
     @_executingTasks = true
@@ -297,7 +298,7 @@ class WatchNetwork extends EventEmitter
 
       @log.info "Executing task '#{task}'"
       @_executeTask task, changedFile, =>
-        @log.info "Finished Executing task #{task}"
+        @log.info "Finished Executing task '#{task}'"
         done()
 
     , =>
@@ -319,17 +320,17 @@ class WatchNetwork extends EventEmitter
 
 
   _executeDeferredTasks: (callback) ->
-    if @_deferredTasks.length <= 0
+    if @_deferredTaskMatches.length <= 0
       return callback()
 
     if @_options.flushDeferredTasks
-      @log.debug "Flushing deferred tasks '#{@_deferredTasks}'"
+      @log.debug "Flushing deferred tasks '#{@_deferredTaskMatches}'"
       return callback()
 
     @log.info "Executing deferred tasks"
-    @_executeMatchedTasks @_deferredTasks, '', =>
+    @_executeMatchedTasks @_deferredTaskMatches, '', =>
       @log.info "Finished deferred tasks"
-      @_deferredTasks = []
+      @_deferredTaskMatches = []
       callback()
 
 
