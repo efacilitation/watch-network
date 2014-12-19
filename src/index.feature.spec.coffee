@@ -18,6 +18,7 @@ describe 'WatchNetwork Feature', ->
 
 
   afterEach (done) ->
+    watch.stop()
     listenProcess.on 'close', ->
       setTimeout ->
         del.sync './tmp', force: true
@@ -40,20 +41,21 @@ describe 'WatchNetwork Feature', ->
       rootFile: './tmp/.root'
       configs: [
         {
-          patterns: '**/*.ext'
+          patterns: 'file.ext'
           tasks: 'nifty'
         }
       ]
 
-    niftyMatched = false
     watch.on 'changed', (files) ->
       niftyIndex = files.indexOf 'file.ext'
-      if niftyIndex > -1 and not niftyMatched
-        niftyMatched = true
+      if niftyIndex > -1
         expect(files[niftyIndex]).to.equal 'file.ext'
         expect(niftyTaskCalled).to.be.true
-        watch.stop()
         done()
+
+    watch.task 'nifty', (changedFile, callback) ->
+      expect(changedFile).to.equal 'file.ext'
+      callback()
 
     watch.initialize ->
       fs.writeFileSync './tmp/file.ext'
@@ -74,7 +76,6 @@ describe 'WatchNetwork Feature', ->
     gulp.task 'second', ->
       secondTaskCalled = true
       expect(firstTaskCalled).to.be.true
-      watch.stop()
       done()
 
 

@@ -63,8 +63,11 @@ watch = WatchNetWork({
   ]
 });
 
-watch.task('something:important', function(callback) {
-  // if you define the optional `callback` function the watcher will wait until you call it
+watch.task('something:important', function(changedFile, callback) {
+  // `changedFile` which file change caused the task to run
+  // `callback` function the watcher will wait until you call it
+  //
+  // you can omit both parameters to let the task run synchronously
 });
 
 watch.initialize();

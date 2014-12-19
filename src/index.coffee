@@ -40,32 +40,32 @@ class WatchNetwork extends EventEmitter
     @_waitingOnRootFileChangeIntervalId = null
     @_initialized = false
     @lastChangeTime = null
+    @log = new Logger
 
 
   initialize: (callback = ->) ->
-    gutil.log "Initializing"
+    @log.info "Initializing"
     @on 'initialized', ->
       callback()
 
     @on 'changed', =>
       @lastChangeTime = new Date()
 
-    gutil.log "Executing Tasks with onLoad flag"
     @_executeTasksOnLoad =>
 
-      gutil.log "Connecting to Listen"
+      @log.info "Connecting to Listen"
       @_socket = @_connectToSocket =>
-        gutil.log "Connected to Listen at #{@_options.host}:#{@_options.port}"
+        @log.info "Connected to Listen at #{@_options.host}:#{@_options.port}"
 
       @_socket.on 'data', (data) =>
-        gutil.log "Receiving Data from Listen"
+        @log.debug "Receiving Data from Listen"
         @_handleIncomingDataFromListen arguments...
 
       @_socket.on 'end', =>
-        gutil.log "Connection to Listen lost"
+        @log.info "Connection to Listen lost"
 
       process.on 'SIGINT', =>
-        @end()
+        @stop()
         process.exit 0
 
     @
@@ -79,9 +79,9 @@ class WatchNetwork extends EventEmitter
   stop: ->
     @_socket.end()
     @_socket.destroy()
-    gutil.log "Disconnected from Listen"
+    @log.info "Disconnected from Listen"
     @removeAllListeners()
-    gutil.log "Removed all Listeners"
+    @log.debug "Removed all Listeners"
     @
 
 
@@ -103,7 +103,7 @@ class WatchNetwork extends EventEmitter
       if @_waitingOnRootFileChangeRetries > @_waitingOnRootFileChangeMaxRetries
         err = "No change event after touching the RootFile, aborting..
               (max retries reached: #{@_waitingOnRootFileChangeMaxRetries})"
-        gutil.log err
+        @log.debug err
         throw new Error err
 
       @_touchLocalRootFile()
@@ -111,7 +111,7 @@ class WatchNetwork extends EventEmitter
       retries = ""
       if @_waitingOnRootFileChangeRetries > 0
         retries = "Retry #{@_waitingOnRootFileChangeRetries}/#{@_waitingOnRootFileChangeMaxRetries}: "
-      gutil.log "#{retries}Waiting for incoming Listen Data.."
+      @log.debug "#{retries}Waiting for incoming Listen Data.."
 
       @_waitingOnRootFileChangeRetries++
 
@@ -119,15 +119,15 @@ class WatchNetwork extends EventEmitter
 
 
   _touchLocalRootFile: ->
-    gutil.log "Touching Local RootFile #{@_localRootFilePath}"
+    @log.debug "Touching Local RootFile #{@_localRootFilePath}"
     fs.writeFileSync @_localRootFilePath
 
 
   _handleIncomingDataFromListen: (buffer, callback = ->) =>
     data = buffer.toString()
-    gutil.log "Incoming Listen Data: #{data}"
+    @log.debug "Incoming Listen Data: #{data}"
     files = @_parseFilesFromListenData data
-    gutil.log "Parsed file paths from Data", files
+    @log.debug "Parsed file paths from Data", files
 
     if @_waitingOnRootFileChange
       clearInterval @_waitingOnRootFileChangeIntervalId
@@ -138,7 +138,7 @@ class WatchNetwork extends EventEmitter
 
     else
       files = @_stripRemoteRootPathFromFiles files
-      gutil.log "Files changed: #{files}"
+      @log.debug "Files changed: #{files}"
       @_executeTasksMatchingChangedFiles files, =>
         @emit 'changed', files
         callback()
@@ -148,9 +148,9 @@ class WatchNetwork extends EventEmitter
     maxRetries = 3
     retry = 0
     while (true)
-      gutil.log "Got FileChange Events from Listen, searching for the RootFile in '#{files}'"
+      @log.debug "Got FileChange Events from Listen, searching for the RootFile in '#{files}'"
       if @_searchRootFileInChangedFiles files
-        gutil.log "Successfully detected RootFile and set RemoteRootPath to '#{@_remoteRoothPath}'!"
+        @log.debug "Successfully detected RootFile and set RemoteRootPath to '#{@_remoteRoothPath}'!"
         @_waitingOnRootFileChange = false
         @_removeLocalRootFile()
         @emit 'initialized', files
@@ -161,10 +161,10 @@ class WatchNetwork extends EventEmitter
       else
         retry++
         if retry <= maxRetries
-          gutil.log "Couldnt find the RootFile in the Changed Files, retrying.. #{retry}/#{maxRetries}"
+          @log.debug "Couldnt find the RootFile in the Changed Files, retrying.. #{retry}/#{maxRetries}"
         else
           err = "Couldnt find the RootFile in the Changed Files, aborting.. (max retries reached: #{maxRetries})"
-          gutil.log err
+          @log.debug err
           throw new Error err
 
         @_waitingOnRootFileChange = true
@@ -206,9 +206,10 @@ class WatchNetwork extends EventEmitter
 
 
   _executeTasksOnLoad: (callback = ->) ->
+    @log.debug "Executing Tasks with onLoad flag"
     async.eachSeries @_options.configs, (config, done) =>
       if config.onLoad
-        @_executeTasks config.tasks, done
+        @_executeTasks config.tasks, '', done
       else
         done()
 
@@ -218,10 +219,10 @@ class WatchNetwork extends EventEmitter
   _executeTasksMatchingChangedFiles: (files, callback = ->) ->
     if @_executingTasks
       for filename in files
-        tasks = @_getTasksFromConfigMatchingTheFilename filename
+        tasks = @_matchFilenameAgainstConfigsPatterns filename
         @_deferredTasks = @_deferredTasks.concat tasks
 
-      gutil.log "Deferred Tasks '#{@_deferredTasks}'"
+      @log.debug "Deferred Tasks '#{@_deferredTasks}'"
       return callback()
 
     @_executingTasks = true
@@ -229,11 +230,11 @@ class WatchNetwork extends EventEmitter
       if @_rootFileRegExp.test filename
         return done()
 
-      tasks = @_getTasksFromConfigMatchingTheFilename filename
-      if tasks.length <= 0
+      matches = @_matchFilenameAgainstConfigsPatterns filename
+      if matches.length <= 0
         return done()
 
-      @_executeTasks tasks, done
+      @_executeMatchedTasks matches, done
 
     , =>
       @_executeDeferredTasks =>
@@ -241,42 +242,67 @@ class WatchNetwork extends EventEmitter
         callback()
 
 
-  _getTasksFromConfigMatchingTheFilename: (filename) ->
-    tasks = []
+  _matchFilenameAgainstConfigsPatterns: (filename) ->
+    matches = []
     for config in @_options.configs
       continue if not config.patterns or not config.tasks
 
       if typeof config.patterns is 'string'
         config.patterns = [config.patterns]
 
+      matched = false
       for pattern in config.patterns
         if minimatch filename, pattern
-          gutil.log "Pattern '#{pattern}' matched. Queueing tasks '#{config.tasks}'"
-          tasks = tasks.concat config.tasks
+          matched = true
 
-    tasks
+      continue if not matched
+
+      @log.debug "Pattern '#{pattern}' matched. Queueing tasks '#{config.tasks}'"
+      matches.push
+        filename: filename
+        tasks: config.tasks
+
+    matches
 
 
-  _executeTasks: (tasks, callback) ->
+  _executeMatchedTasks: (matches, callback) ->
+    async.eachSeries matches, (match, done) =>
+      @_executeTasks match.tasks, match.filename, done
+    , ->
+      callback()
+
+
+  _executeTasks: (tasks, changedFile, callback) ->
     if typeof tasks is 'string'
       tasks = [tasks]
 
-    gutil.log "Executing tasks '#{tasks}'"
+    if tasks.length is 0
+      return callback()
+
     async.eachSeries tasks, (task, done) =>
       if not @_tasks[task] or typeof @_tasks[task] isnt 'function'
         return done()
 
-      if @_tasks[task].arguments.length is 0
-        @_tasks[task] done
-      else
-        @_tasks[task]()
+      @log.info "Executing task '#{task}'"
+      @_executeTask task, changedFile, =>
+        @log.info "Finished Executing task #{task}"
         done()
 
     , =>
-      gutil.log "Finished Executing tasks"
       if @_options.gulp
         @_executeGulpTasksWithRunSequence tasks, callback
       else
+        callback()
+
+
+  _executeTask: (task, changedFile, callback) ->
+    taskFunction   = @_tasks[task]
+    taskArgsLength = taskFunction.length
+    if taskArgsLength is 0
+      @_tasks[task]()
+      callback()
+    else if taskArgsLength is 2
+      @_tasks[task] changedFile, ->
         callback()
 
 
@@ -285,21 +311,48 @@ class WatchNetwork extends EventEmitter
       return callback()
 
     if @_options.flushDeferredTasks
-      gutil.log "Flushing deferred tasks '#{@_deferredTasks}'"
+      @log.debug "Flushing deferred tasks '#{@_deferredTasks}'"
       return callback()
 
-    gutil.log "Executing deferred tasks"
-    @_executeTasks @_deferredTasks, ->
-      gutil.log "Finished deferred tasks"
+    @log.info "Executing deferred tasks"
+    @_executeMatchedTasks @_deferredTasks, '', =>
+      @log.info "Finished deferred tasks"
       @_deferredTasks = []
       callback()
 
 
   _executeGulpTasksWithRunSequence: (tasks, callback) ->
-    gutil.log "Executing gulp-tasks with run-sequence '#{tasks}'"
-    runSequence tasks..., ->
-      gutil.log "Finished Executing gulp-tasks with run-sequence '#{tasks}'"
+    @log.info "Executing gulp-tasks with run-sequence '#{tasks}'"
+    runSequence tasks..., =>
+      @log.info "Finished Executing gulp-tasks with run-sequence '#{tasks}'"
       callback()
+
+
+class Logger
+  _logLevel: 1
+  setLogLevel: (logLevel) ->
+    @_logLevel = switch logLevel
+      when 'debug' then 0
+      when 'warn' then 1
+      when 'info' then 2
+      when 'error' then 3
+
+  debug: ->
+    return if @_logLevel > 0
+    gutil.log arguments...
+
+  warn: ->
+    return if @_logLevel > 1
+    gutil.log arguments...
+
+  info: ->
+    return if @_logLevel > 2
+    gutil.log arguments...
+
+  error: ->
+    return if @_logLevel > 3
+    gutil.log arguments...
+
 
 
 module.exports = (options) ->

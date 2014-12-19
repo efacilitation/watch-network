@@ -8,10 +8,6 @@ describe 'WatchNetwork', ->
   watchNetwork = null
   netMockery = null
   beforeEach ->
-    gutilStub =
-      log: sandbox.stub()
-    mockery.registerMock 'gulp-util', gutilStub
-
     fsStub =
       existsSync: sandbox.stub().returns true
       unlinkSync: sandbox.stub()
