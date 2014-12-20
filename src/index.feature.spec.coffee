@@ -42,6 +42,10 @@ describe 'WatchNetwork Feature', ->
       configs: [
         {
           patterns: 'file.ext'
+          tasks: 'foo'
+        }
+        {
+          patterns: 'file.ext'
           tasks: 'nifty'
         }
       ]
@@ -50,11 +54,15 @@ describe 'WatchNetwork Feature', ->
       niftyIndex = files.indexOf 'file.ext'
       if niftyIndex > -1
         expect(files[niftyIndex]).to.equal 'file.ext'
-        #expect(niftyTaskCalled).to.be.true
+        expect(niftyTaskCalled).to.be.true
         done()
 
+    watch.task 'foo', (changedFile, callback) ->
+      expect(changedFile).to.equal 'file.ext'
+      callback()
+
     watch.task 'nifty', (changedFile, callback) ->
-      #expect(changedFile).to.equal 'file.ext'
+      expect(changedFile).to.equal 'file.ext'
       callback()
 
     watch.initialize ->
@@ -69,13 +77,13 @@ describe 'WatchNetwork Feature', ->
     gulp.task 'first', (next) ->
       firstTaskCalled = true
       setTimeout ->
-        #expect(secondTaskCalled).to.be.false
+        expect(secondTaskCalled).to.be.false
         next()
       , 250
 
     gulp.task 'second', ->
       secondTaskCalled = true
-      #expect(firstTaskCalled).to.be.true
+      expect(firstTaskCalled).to.be.true
       done()
 
 

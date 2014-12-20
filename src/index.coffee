@@ -336,6 +336,12 @@ class WatchNetwork extends EventEmitter
 
   _executeGulpTasksWithRunSequence: (tasks, callback) ->
     @log.info "Executing gulp-tasks with run-sequence '#{tasks}'"
+    tasks = tasks.filter (task) =>
+      @_options.gulp.tasks[task]
+
+    if tasks.length is 0
+      return callback()
+
     runSequence tasks..., =>
       @log.info "Finished Executing gulp-tasks with run-sequence '#{tasks}'"
       callback()
