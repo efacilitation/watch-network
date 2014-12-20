@@ -235,7 +235,8 @@ class WatchNetwork extends EventEmitter
         for match in matches
           tasks = tasks.concat match.tasks
 
-      @log.info "Deferred Tasks '#{tasks}'"
+      if tasks.length > 0
+        @log.info "Deferred Tasks '#{tasks}'"
       return callback()
 
     @_executingTasks = true
