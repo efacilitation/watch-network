@@ -326,6 +326,7 @@ class WatchNetwork extends EventEmitter
 
     if @_options.flushDeferredTasks
       @log.debug "Flushing deferred tasks '#{@_deferredTaskMatches}'"
+      @_deferredTaskMatches = []
       return callback()
 
     @log.info "Executing deferred tasks"
