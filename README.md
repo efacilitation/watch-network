@@ -51,7 +51,7 @@ npm install watch-network
 ## Usage
 
 ```javascript
-WatchNetwork = require("gulp-watch-network");
+WatchNetwork = require("watch-network");
 
 watch = WatchNetWork({
   configs: [
@@ -83,7 +83,7 @@ gulp.task('something:important', function() {
   // ..
 });
 
-WatchNetwork = require("gulp-watch-network");
+WatchNetwork = require("watch-network");
 
 watch = WatchNetWork({
   gulp: gulp,
