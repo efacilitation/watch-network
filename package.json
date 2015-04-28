@@ -1,17 +1,17 @@
 {
   "name": "watch-network",
   "description": "Watch File Events received over the Network using Listen and execute Gulp Tasks based on it",
-  "url": "https://github.com/efacilitation/gulp-watch-network",
+  "url": "https://github.com/efacilitation/watch-network",
   "author": "eFa Team <team@efa-gmbh.com>",
   "version": "0.2.4",
   "license": "MIT",
   "main": "build/src/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/efacilitation/gulp-watch-network.git"
+    "url": "https://github.com/efacilitation/watch-network.git"
   },
   "bugs": {
-    "url": "https://github.com/efacilitation/gulp-watch-network/issues"
+    "url": "https://github.com/efacilitation/watch-network/issues"
   },
   "keywords": [
     "gulp",
