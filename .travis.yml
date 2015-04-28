@@ -2,8 +2,8 @@ language: node_js
 node_js:
 - '0.10'
 before_install:
-- "bundle"
+- bundle
 notifications:
   hipchat:
     room:
-      secure: DpfX/OIQBVZUg/4tqHjvYqBggW2ua+UULbxpnZzkVZKU/91qTtaLegd+YI96gdTk0R1ilsslmvHAde8RZzQWIpVnnQZF1BprG+KVbvKAQhz5wtHk4MCEGWBMIgF2/rC9J+EkHJ309fwhd7R+dHcJ/VnCTaRLZPMZNUTnaoSMpDA=
+      secure: W3QQd3GOU18MUYKcrm1n5U1o6J2S6vFN6B+mRWs4X7njXh2W9AaX80Vmvx24dpxzSXpMenqJnp1hHvpS87LjizNlyDFvOm3+PF/im1rkxiLyxNY3+rFUMd3+2+nvBBRjeJ96tB0D2df1xkUEg4b34fiyL6UDDnqpLkUVYXNCRQA=
