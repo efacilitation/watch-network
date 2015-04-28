@@ -5,5 +5,5 @@ before_install:
 - bundle
 notifications:
   hipchat:
-    room:
-      secure: W3QQd3GOU18MUYKcrm1n5U1o6J2S6vFN6B+mRWs4X7njXh2W9AaX80Vmvx24dpxzSXpMenqJnp1hHvpS87LjizNlyDFvOm3+PF/im1rkxiLyxNY3+rFUMd3+2+nvBBRjeJ96tB0D2df1xkUEg4b34fiyL6UDDnqpLkUVYXNCRQA=
+    rooms:
+      secure: FudgnhJl06FRYTA5dDZqQncNbFvoXAN54PlpewUtS4Ny5+FtFqmyM28k1fANEmOvlfRKZ0W5WZKGxw+disBE/SiSVKEttxLprHvbGaK+LBK5MALdLpVNPKvI5X8CdzKXDhNCx4oYqowordsyL4V9VRTyPQGBeSvTgbaZnn5He2Q=
