@@ -11,7 +11,7 @@ describe 'WatchNetwork Feature', ->
       del.sync './tmp', force: true
     fs.mkdirSync './tmp'
 
-    listenProcess = spawn "listen", ["-d", "./tmp"]
+    listenProcess = spawn 'bundle', ['exec', 'listen', '-r', '-d', './tmp']
     setTimeout ->
       done()
     , 500
@@ -38,7 +38,7 @@ describe 'WatchNetwork Feature', ->
     WatchNetwork = require './'
     watch = WatchNetwork
       gulp: gulp
-      rootFile: './tmp/.root'
+      rootFile: 'tmp/.root'
       configs: [
         {
           patterns: 'file.ext'
@@ -90,7 +90,7 @@ describe 'WatchNetwork Feature', ->
     WatchNetwork = require './'
     watch = WatchNetwork
       gulp: gulp
-      rootFile: './tmp/.root'
+      rootFile: 'tmp/.root'
       configs: [
         {
           patterns: 'foo'
